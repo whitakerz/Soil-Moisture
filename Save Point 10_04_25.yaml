@@ -1,4 +1,7 @@
 substitutions:
+  # Primary timing controls. Adjust these to balance responsiveness and
+  # power consumption. Shorter run times and longer sleep durations will
+  # extend battery life at the expense of slower updates.
   sleep_time: 10min
   run_time: 1min
   night_sleep_time: 8h
@@ -10,11 +13,16 @@ esphome:
     priority: 600
     then:
       - lambda: |-
+          // Ensure the I2C bus starts cleanly before any sensor updates.
           Wire.begin();
+          // Allow time for sensors to power up fully before polling.
           delay(100);
 
 logger:
-  level: DEBUG
+  # Lower the log level to reduce serial output overhead while still
+  # retaining warnings and errors for diagnostics. Set back to DEBUG
+  # temporarily when actively troubleshooting.
+  level: WARN
 
 esp32:
   board: esp32dev
@@ -38,6 +46,8 @@ wifi:
     static_ip: 192.168.7.105 # 👈 Replace with your desired static IP
     gateway: 192.168.7.1     # 👈 Replace with your router's IP
     subnet: 255.255.255.0    # 👈 Your network's subnet mask
+  # Enable Wi-Fi power save to lower consumption between transmissions.
+  power_save_mode: LIGHT
   ap:
     ssid: "Soil Fallback Hotspot"
     password: "BDVDN7O0KT7E"
@@ -49,10 +59,12 @@ captive_portal:
 i2c:
   sda: 21
   scl: 22
-  scan: true
+  # Disable continuous scanning after development to shorten boot time and
+  # reduce unnecessary bus activity. Re-enable if you are adding new devices.
+  scan: false
   id: bus_a
 
-# SHT31 sensor
+# Environmental sensors
 sensor:
   - platform: sht3xd
     i2c_id: bus_a
@@ -75,6 +87,7 @@ sensor:
     # ----- 5V sense (pre-divider) -----
   - platform: adc
     id: adc_5v_raw
+    # Monitor the input rail before the divider to detect USB power.
     name: "ADC Pin Voltage (GPIO36)"
     pin: GPIO36
     attenuation: 12db
@@ -85,6 +98,7 @@ sensor:
   - platform: copy
     source_id: adc_5v_raw
     id: source_voltage
+    # Convert the divided reading to the actual 5 V rail voltage.
     name: "5V"
     unit_of_measurement: "V"
     accuracy_decimals: 2
@@ -93,6 +107,8 @@ sensor:
     on_value:
       then:
         - lambda: |-
+            // Simple hysteresis to prevent rapid toggling when the 5 V rail
+            // hovers near the threshold.
             static bool present = false;
             if (!present && x > 4.0) present = true;
             else if (present && x < 3.0) present = false;
@@ -101,6 +117,7 @@ sensor:
   # ----- LiPo battery voltage -----
   - platform: adc
     id: adc_batt_raw
+    # Raw battery ADC reading used to derive voltage and percentage.
     name: "ADC Pin Voltage (GPIO32)"
     pin: GPIO32
     attenuation: 12db
@@ -111,6 +128,7 @@ sensor:
   - platform: copy
     source_id: adc_batt_raw
     id: battery_voltage
+    # Scale the raw ADC reading to the actual LiPo voltage.
     name: "Battery Voltage"
     unit_of_measurement: "V"
     device_class: voltage
@@ -139,6 +157,8 @@ sensor:
           - 3.30 -> 0
       # Clamp and smooth
       - lambda: |-
+          // Clamp noisy readings before smoothing so that the moving average
+          // never reports out-of-range percentages.
           if (x < 0) x = 0;
           if (x > 100) x = 100;
           return x;
@@ -159,21 +179,27 @@ binary_sensor:
       then:
         - logger.log: "Voltage lost — entering deep sleep."
         #- light.turn_off: awake_led
-        - deep_sleep.enter: deep_sleep_ctrl    
+        - deep_sleep.enter: deep_sleep_ctrl
+    # Virtual sensor that reflects whether external 5 V power is present.
+    # Used to gate energy-intensive tasks when the device is battery-only.
+
 time:
   - platform: homeassistant
     id: home_time
+    # Pull time from Home Assistant so that sleep decisions stay aligned with
+    # your household schedule even after long deep-sleep intervals.
 
 
 script:
   - id: enter_sleep
+    # Decide between short daytime naps and extended overnight sleeps.
     then:
       - if:
           condition:
             lambda: |-
               auto time = id(home_time).now();
               if (!time.is_valid()) return false;
-              return (time.hour >= 21); 
+              return (time.hour >= 21);
           then:
             - logger.log: "It's nighttime, entering long sleep for ${night_sleep_time}"
             ### THIS IS LOGGING IN HOME ASSISTANT ###
@@ -203,7 +229,7 @@ script:
             ### TO HERE ###
             - deep_sleep.enter:
                 id: deep_sleep_ctrl
-                sleep_duration: ${sleep_time}        
+                sleep_duration: ${sleep_time}
 interval:
   #- interval: 5s
   #  then:
@@ -216,8 +242,10 @@ interval:
           condition:
             binary_sensor.is_on: voltage_present
           then:
+            # Only refresh ADC readings when external power is available to
+            # avoid unnecessary wake-time when running from battery.
             - component.update: adc_5v_raw
-            - component.update: adc_batt_raw        
+            - component.update: adc_batt_raw
 
 
 deep_sleep:
@@ -225,4 +253,6 @@ deep_sleep:
   run_duration: ${run_time}
   sleep_duration: ${sleep_time}
   wakeup_pin: GPIO39
-  wakeup_pin_mode: KEEP_AWAKE            
+  # KEEP_AWAKE ensures the device stays awake while the wake pin is asserted,
+  # which is useful when tethered to external power.
+  wakeup_pin_mode: KEEP_AWAKE
