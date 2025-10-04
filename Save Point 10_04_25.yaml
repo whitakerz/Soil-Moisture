@@ -6,14 +6,15 @@ substitutions:
 esphome:
   name: sht31_sensor
   friendly_name: Soil
-  platform: ESP32
-  board: esp32dev
   on_boot:
     priority: 600
     then:
-     - lambda: |-
-        Wire.begin();
-        delay(100);
+      - lambda: |-
+          Wire.begin();
+          delay(100);
+
+logger:
+  level: DEBUG
 
 esp32:
   board: esp32dev
