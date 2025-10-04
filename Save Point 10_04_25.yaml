@@ -19,7 +19,7 @@ logger:
 esp32:
   board: esp32dev
   framework:
-    type: esp-idf
+    type: arduino
   cpu_frequency: 80MHz
 
 api:
