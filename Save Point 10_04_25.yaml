@@ -1,3 +1,8 @@
+substitutions:
+  sleep_time: 10min
+  run_time: 1min
+  night_sleep_time: 8h
+
 esphome:
   name: sht31_sensor
   friendly_name: Soil
@@ -9,6 +14,7 @@ esphome:
      - lambda: |-
         Wire.begin();
         delay(100);
+
 esp32:
   board: esp32dev
   framework:
@@ -49,14 +55,21 @@ i2c:
 sensor:
   - platform: sht3xd
     i2c_id: bus_a
-    address: 0x44  # default address (use 0x45 if A0 pin is pulled high)
+    address: 0x44
     temperature:
+      id: sht31_temperature
       name: "SHT31 Temperature"
+      device_class: temperature
+      state_class: measurement
+      unit_of_measurement: "°C"
       accuracy_decimals: 2
     humidity:
+      id: sht31_humidity
       name: "SHT31 Humidity"
+      device_class: humidity
+      state_class: measurement
+      unit_of_measurement: "%"
       accuracy_decimals: 2
-    update_interval: 30s
 
     # ----- 5V sense (pre-divider) -----
   - platform: adc
@@ -144,5 +157,71 @@ binary_sensor:
     on_release:
       then:
         - logger.log: "Voltage lost — entering deep sleep."
-        - light.turn_off: awake_led
-        - deep_sleep.enter: deep_sleep_ctrl           
+        #- light.turn_off: awake_led
+        - deep_sleep.enter: deep_sleep_ctrl    
+time:
+  - platform: homeassistant
+    id: home_time
+
+
+script:
+  - id: enter_sleep
+    then:
+      - if:
+          condition:
+            lambda: |-
+              auto time = id(home_time).now();
+              if (!time.is_valid()) return false;
+              return (time.hour >= 21); 
+          then:
+            - logger.log: "It's nighttime, entering long sleep for ${night_sleep_time}"
+            ### THIS IS LOGGING IN HOME ASSISTANT ###
+            - homeassistant.event:
+                event: esphome.battery_sleep
+                data:
+                  device: battery
+                  reason: "night"
+                  duration: "${night_sleep_time}"
+                  voltage: !lambda 'return id(battery_voltage).state;'
+                  now: !lambda 'return id(home_time).now().strftime("%Y-%m-%d %H:%M:%S");'
+            ### TO HERE ###
+            - deep_sleep.enter:
+                id: deep_sleep_ctrl
+                sleep_duration: ${night_sleep_time}
+          else:
+            - logger.log: "It's daytime, entering short sleep for ${sleep_time}"
+            ### THIS IS LOGGING IN HOME ASSISTANT ###
+            - homeassistant.event:
+                event: esphome.battery_sleep
+                data:
+                  device: battery
+                  reason: "day"
+                  duration: "${sleep_time}"
+                  voltage: !lambda 'return id(battery_voltage).state;'
+                  now: !lambda 'return id(home_time).now().strftime("%Y-%m-%d %H:%M:%S");'
+            ### TO HERE ###
+            - deep_sleep.enter:
+                id: deep_sleep_ctrl
+                sleep_duration: ${sleep_time}        
+interval:
+  #- interval: 5s
+  #  then:
+  #    - component.update: adc_5v_raw
+  #    - component.update: adc_batt_raw
+
+  - interval: 2min
+    then:
+      - if:
+          condition:
+            binary_sensor.is_on: voltage_present
+          then:
+            - component.update: adc_5v_raw
+            - component.update: adc_batt_raw        
+
+
+deep_sleep:
+  id: deep_sleep_ctrl
+  run_duration: ${run_time}
+  sleep_duration: ${sleep_time}
+  wakeup_pin: GPIO39
+  wakeup_pin_mode: KEEP_AWAKE            
