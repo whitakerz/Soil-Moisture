@@ -2,7 +2,7 @@ substitutions:
   # Primary timing controls. Adjust these to balance responsiveness and
   # power consumption. Shorter run times and longer sleep durations will
   # extend battery life at the expense of slower updates.
-  sleep_time: 10min
+  sleep_time: 3min
   run_time: 1min
   night_sleep_time: 8h
 
@@ -17,6 +17,8 @@ esphome:
           Wire.begin();
           // Allow time for sensors to power up fully before polling.
           delay(100);
+      - script.execute: enter_sleep          
+
 
 logger:
   # Lower the log level to reduce serial output overhead while still
