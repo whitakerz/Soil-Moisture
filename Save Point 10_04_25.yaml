@@ -159,6 +159,30 @@ sensor:
           if (x < 0) x = 0;
           if (x > 100) x = 100;
           return x;
+
+  - platform: wifi_signal
+    id: wifi_signal_dbm
+    name: "WiFi Signal"
+    update_interval: 60s
+    entity_category: diagnostic
+    filters:
+      - delta: 1
+
+  - platform: copy
+    source_id: wifi_signal_dbm
+    name: "WiFi Signal (%)"
+    unit_of_measurement: "%"
+    device_class: signal_strength
+    entity_category: diagnostic
+    accuracy_decimals: 0
+    filters:
+      - lambda: |-
+          const float RSSI_MIN = -90.0f;
+          const float RSSI_MAX = -30.0f;
+          float percent = (x - RSSI_MIN) / (RSSI_MAX - RSSI_MIN) * 100.0f;
+          if (percent < 0.0f) percent = 0.0f;
+          if (percent > 100.0f) percent = 100.0f;
+          return percent;
       - sliding_window_moving_average:
           window_size: 4
           send_every: 1
