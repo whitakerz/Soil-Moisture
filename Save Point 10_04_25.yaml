@@ -85,9 +85,11 @@ sensor:
     temperature:
       name: "SHT31 Temperature"
       id: sht31_temperature
+      force_update: true
     humidity:
       name: "SHT31 Humidity"
       id: sht31_humidity
+      force_update: true
 
   - platform: adc
     id: adc_5v_raw
@@ -131,6 +133,7 @@ sensor:
     device_class: voltage
     state_class: measurement
     accuracy_decimals: 2
+    force_update: true
     filters:
       - multiply: 1.36
 
@@ -142,6 +145,7 @@ sensor:
     device_class: battery
     state_class: measurement
     accuracy_decimals: 0
+    force_update: true
     filters:
       - calibrate_linear:
           - 4.18 -> 100
