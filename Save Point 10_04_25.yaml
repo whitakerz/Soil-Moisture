@@ -27,6 +27,7 @@ esphome:
                   api.connected:
             - logger.log: "Network ready, reading sensors."
             - component.update: sht31_sensor
+            - component.update: wifi_signal_dbm
             - component.update: adc_batt_raw
             - component.update: adc_5v_raw
             - wait_until:
