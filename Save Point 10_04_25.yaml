@@ -1,8 +1,16 @@
+# -----------------------------------------------------------------------------
+# Global substitution values used throughout the configuration. Adjusting these
+# settings allows the device runtime and sleep intervals to be tuned without
+# touching the rest of the file.
+# -----------------------------------------------------------------------------
 substitutions:
   run_time: 30s
   sleep_time: 5min
   night_sleep_time: 8h
 
+# Core ESPHome configuration and boot sequence. The on_boot logic ensures the
+# device gathers sensor data before entering deep sleep when running on
+# battery-only power.
 esphome:
   name: sht31_sensor
   friendly_name: Soil
@@ -41,9 +49,13 @@ esphome:
 
 
 
+# Verbose logging helps with diagnosing wake/sleep behaviour when deploying
+# in the field.
 logger:
   level: DEBUG
 
+# ESP32 hardware configuration. The CPU frequency is reduced to save power
+# during battery operation.
 esp32:
   board: esp32dev
   framework:
@@ -58,6 +70,8 @@ ota:
   - platform: esphome
     password: "af02dabd1a628b113fb6ffc6c6a94c17"
 
+# Primary Wi-Fi connection along with a fallback access point to assist with
+# provisioning should the device be unable to join the main network.
 wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
@@ -72,6 +86,7 @@ wifi:
 
 captive_portal:
 
+# I2C bus that hosts the SHT31 sensor.
 i2c:
   sda: 21
   scl: 22
@@ -79,6 +94,7 @@ i2c:
   id: bus_a
 
 sensor:
+  # SHT31 temperature and humidity readings.
   - platform: sht3xd
     id: sht31_sensor
     address: 0x44
@@ -91,6 +107,7 @@ sensor:
       id: sht31_humidity
       force_update: true
 
+  # Raw ADC reading of the 5V input, kept internal for derived sensors.
   - platform: adc
     id: adc_5v_raw
     name: "ADC Pin Voltage (GPIO36)"
@@ -116,6 +133,8 @@ sensor:
             else if (present && x < 3.0) present = false;
             id(voltage_present).publish_state(present);
 
+  # Raw ADC reading of the Li-Ion battery which is scaled below to volts and
+  # percentage.
   - platform: adc
     id: adc_batt_raw
     name: "ADC Pin Voltage (GPIO32)"
@@ -168,6 +187,8 @@ sensor:
     filters:
       - delta: 1
 
+  # Derived Wi-Fi signal percentage to give a user-friendly representation in
+  # dashboards.
   - platform: copy
     source_id: wifi_signal_dbm
     name: "WiFi Signal (%)"
@@ -188,6 +209,8 @@ sensor:
           send_every: 1
 
 binary_sensor:
+  # Indicates whether external 5V power is present; used to decide between
+  # normal updates and the low-power workflow.
   - platform: template
     id: voltage_present
     name: "Voltage Present"
@@ -201,6 +224,8 @@ time:
   - platform: homeassistant
     id: home_time
 
+# Sleep management script differentiating between day and night to conserve
+# battery life.
 script:
   - id: enter_sleep
     then:
@@ -248,9 +273,12 @@ interval:
             - component.update: adc_5v_raw
             - component.update: adc_batt_raw
 
+# Deep sleep controller that governs wake durations and responds to the
+# external wake pin.
 deep_sleep:
   id: deep_sleep_ctrl
   run_duration: ${run_time}
   sleep_duration: ${sleep_time}
   wakeup_pin: GPIO39
   wakeup_pin_mode: KEEP_AWAKE
+
