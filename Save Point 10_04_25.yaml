@@ -7,25 +7,39 @@ esphome:
   name: sht31_sensor
   friendly_name: Soil
   on_boot:
-    priority: 600
+    priority: -10
     then:
       - lambda: |-
           Wire.begin();
           delay(100);
-      # Wait a bit for sensors to stabilize before any decisions
-      - delay: 500ms
       - if:
           condition:
             binary_sensor.is_on: voltage_present
           then:
-            - logger.log: "5V present staying awake and updating every 30s."
+            - logger.log: "5V present, staying awake and updating every 30s."
           else:
-            - logger.log: "On battery will read once and sleep."
+            - logger.log: "On battery, waiting for Wi-Fi and sensors."
+            - wait_until:
+                condition:
+                  wifi.connected:
+            - wait_until:
+                condition:
+                  api.connected:
+            - logger.log: "Network ready, reading sensors."
             - component.update: sht31_sensor
             - component.update: adc_batt_raw
             - component.update: adc_5v_raw
-            #- delay: 10s
+            - wait_until:
+                condition:
+                  lambda: |-
+                    return id(sht31_temperature).has_state() &&
+                           id(sht31_humidity).has_state() &&
+                           id(battery_voltage).has_state();
+            - logger.log: "Publishing complete, entering sleep."
+            - delay: 1s
             - script.execute: enter_sleep
+
+
 
 logger:
   level: DEBUG
