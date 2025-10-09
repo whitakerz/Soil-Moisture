@@ -9,7 +9,7 @@
 # -----------------------------------------------------------------------------
 substitutions:
   run_time: 20s
-  sleep_time: 20min
+  sleep_time: 15min
   low_battery_sleep_time: 60min
   night_sleep_time: 8h
 
@@ -28,7 +28,6 @@ esphome:
       # updates. Falling back to the raw ADC value prevents the boot sequence
       # from hanging if the filtered template sensor has not settled yet.
       - component.update: adc_5v_raw
-      - component.update: source_voltage
       - wait_until:
           timeout: 1s
           condition:
@@ -202,7 +201,7 @@ sensor:
     force_update: true
     filters:
       - calibrate_linear:
-          - 4.16 -> 100
+          - 4.2 -> 100
           - 4.00 -> 85
           - 3.85 -> 60
           - 3.80 -> 50
@@ -288,13 +287,15 @@ script:
     mode: restart
     then:
       - logger.log: "On battery, waiting for Wi-Fi and sensors."
-      - wifi.connect:
       - wait_until:
           condition:
             wifi.connected:
+          timeout: 30s
+      - logger.log: "Wi-Fi connected or timeout reached."
       - wait_until:
           condition:
             api.connected:
+          timeout: 15s
       - logger.log: "Network ready, reading sensors."
       - component.update: sht31_sensor
       - component.update: box_sht31_sensor
@@ -325,7 +326,6 @@ script:
           else
             reason = "day_normal";
 
-# Home Assistant Log Message
           char buffer[128];
           snprintf(buffer, sizeof(buffer),
                    "Sleep reason: %s at %s, battery: %.0f%%",
@@ -334,8 +334,7 @@ script:
                    id(battery_percent).state);
           id(last_event).publish_state(buffer);
           id(last_event_text) = buffer;
-          ESP_LOGI("main", "Event stored: %s", buffer);
-# /Home Assistant Log Message          
+          ESP_LOGI("main", "Event stored: %s", buffer);      
 
       - if:
           condition: # time after 21:00 (9pm)
