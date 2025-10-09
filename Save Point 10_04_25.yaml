@@ -19,9 +19,7 @@ esphome:
   on_boot:
     priority: -10
     then:
-      - lambda: |-
-          Wire.begin();
-          delay(100);
+      - delay: 100ms
       - if:
           condition:
             binary_sensor.is_on: voltage_present
@@ -70,7 +68,7 @@ logger:
 esp32:
   board: esp32dev
   framework:
-    type: arduino
+    type: esp-idf
   cpu_frequency: 80MHz
 
 api:
