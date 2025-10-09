@@ -56,11 +56,11 @@ Power & Dividers (left)                             ESP32 (center)
       4.2V (LiPo)                               │                  │
               |                                 │                  │
            [36kΩ]                               │                  │
-              |                                 │           GPIO21 ───── SDA ───► SHT31 SDA
+              |                                 │           GPIO21 ───── SDA ───► SHT31 SDA  ───► SHT31 SDA
           ──● Node C (GPIO32 batt) ─────────────┤◄─ GPIO32 (ADC batt)
-              |                                 │           GPIO22 ────► SCK ───► SHT31 SCL
-           [100kΩ]                              │           3.3V ───────────────► SHT31 VIN
-              |                                 │           GND ────────────────► SHT31 GND
+              |                                 │           GPIO22 ────► SCK ───► SHT31 SCL  ───► SHT31 SCL
+           [100kΩ]                              │           3.3V ───────────────► SHT31 VIN  ───► SHT31 VIN
+              |                                 │           GND ────────────────► SHT31 GND  ───► SHT31 GND
             GND                                 └──────────────────┘
 
 Legend:
