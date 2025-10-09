@@ -1,3 +1,6 @@
+# Code Parts Used From https://github.com/hanspeda/esphome_homeassistant_display.git
+# Code Assistance Provided by OpenAI codex
+
 # -----------------------------------------------------------------------------
 # Global substitution values used throughout the configuration. Adjusting these
 # settings allows the device runtime and sleep intervals to be tuned without
