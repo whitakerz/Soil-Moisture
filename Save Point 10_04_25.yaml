@@ -7,7 +7,7 @@
 substitutions:
   run_time: 20s
   sleep_time: 20min
-  low_battery_sleep_time: 30min
+  low_battery_sleep_time: 60min
   night_sleep_time: 8h
 
 # Core ESPHome configuration and boot sequence. The on_boot logic ensures the
@@ -22,7 +22,7 @@ esphome:
       - delay: 100ms
       - if:
           condition:
-            binary_sensor.is_on: voltage_present
+            binary_sensor.is_on: voltage_present # if 5v plugged in
           then:
             - logger.log: "5V present, staying awake and updating every 30s."
             - component.update: sht31_sensor
@@ -30,7 +30,7 @@ esphome:
             - component.update: wifi_signal_dbm
             - component.update: adc_batt_raw
             - component.update: adc_5v_raw
-          else:
+          else: # if on battery power
             - logger.log: "On battery, waiting for Wi-Fi and sensors."
             - wait_until:
                 condition:
@@ -199,7 +199,7 @@ sensor:
     force_update: true
     filters:
       - calibrate_linear:
-          - 4.18 -> 100
+          - 4.16 -> 100
           - 4.00 -> 85
           - 3.85 -> 60
           - 3.80 -> 50
@@ -294,6 +294,7 @@ script:
           else
             reason = "day_normal";
 
+# Home Assistant Log Message
           char buffer[128];
           snprintf(buffer, sizeof(buffer),
                    "Sleep reason: %s at %s, battery: %.0f%%",
@@ -303,9 +304,10 @@ script:
           id(last_event).publish_state(buffer);
           id(last_event_text) = buffer;
           ESP_LOGI("main", "Event stored: %s", buffer);
+# /Home Assistant Log Message          
 
       - if:
-          condition:
+          condition: # time after 21:00 (9pm)
             lambda: |-
               auto t = id(home_time).now();
               return (t.is_valid() && t.hour >= 21);
@@ -322,7 +324,7 @@ script:
                 id: deep_sleep_ctrl
                 sleep_duration: ${night_sleep_time}
 
-          else:
+          else: # battery out of charge, extend sleep time to save battery
             - if:
                 condition:
                   lambda: |-
@@ -341,7 +343,7 @@ script:
                       id: deep_sleep_ctrl
                       sleep_duration: ${low_battery_sleep_time}
 
-                else:
+                else: # normal battery sleep
                   - homeassistant.event:
                       event: esphome.planter_sleep
                       data:
