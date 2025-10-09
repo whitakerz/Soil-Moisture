@@ -21,7 +21,9 @@ The design prioritizes:
 ## Hardware Used
 
 - **Microcontroller:** ESP32 Dev Board  
-- **Sensor:** Sensirion SHT31 Temperature & Humidity Sensor (I²C, 0x44)  
+- **Sensors:**
+  - Sensirion SHT31 temperature & humidity sensor for planter environment readings (I²C, 0x44)
+  - Sensirion SHT31 temperature probe dedicated to enclosure "box temp" monitoring (I²C, 0x45)
 - **Battery:** Single-cell LiPo (4.2 V max)  
 - **Voltage Dividers:** For battery (GPIO32) and 5 V sensing (GPIO36)  
 - **Wake Logic:** GPIO39 (wake from deep sleep)  
@@ -77,10 +79,11 @@ Both 5 V and LiPo voltages are measured through resistor dividers.
 ## Power Management
 
 The node uses **ESPHome’s deep sleep** to minimize power consumption:
-- **Run time:** ~1 minute per wake cycle  
-- **Daytime sleep:** ~10 minutes  
-- **Night sleep:** ~8 hours after 21:00  
-- **Clock speed:** 80 MHz (underclocked for efficiency)  
+- **Run time:** ~20 seconds per wake cycle (enough to connect and publish)
+- **Daytime sleep:** ~10 minutes when the battery is healthy
+- **Extended daytime sleep:** ~20 minutes when the battery drops below 30%
+- **Night sleep:** ~8 hours after 21:00
+- **Clock speed:** 80 MHz (underclocked for efficiency)
 
 Active current: ≈ 15 mA  
 Sleep current: < 100 µA  
@@ -90,13 +93,16 @@ Sleep current: < 100 µA
 ## Software (ESPHome)
 
 Core configuration features:
-- **Platform:** ESP32 using **ESP-IDF** framework  
-- **Sensors:**  
-  - SHT31 (temperature and humidity via I²C)  
+- **Platform:** ESP32 using **ESP-IDF** framework
+- **Sensors:**
+  - SHT31 (Planter Temperature & Soil Water Level via I²C at 0x44)
+  - Secondary SHT31 for enclosure temperature visibility (I²C at 0x45)
   - ADC for battery and 5 V readings  
-- **Automation:**  
-  - Sleep schedule controlled by real time from Home Assistant  
-  - Sends custom `esphome.battery_sleep` events to HA  
+- **Automation:**
+  - Sleep schedule controlled by real time from Home Assistant
+  - Adaptive daytime sleep that doubles the interval when the battery falls below 30%
+  - Sends custom `esphome.battery_sleep` events to HA, including a low-battery reason when the extended sleep is used
+- **Networking:** Wi-Fi runs at full power with fast connect enabled to maintain a stable link to distant access points.
 - **Battery logic:**  
   - Nonlinear voltage-to-percentage curve tuned for LiPo cells  
   - Voltage smoothing with sliding window average  
@@ -111,8 +117,9 @@ esphome run soil.yaml
 ## Home Assistant Integration
 
 Data is exposed via ESPHome’s native API:
-- Temperature (`sensor.sht31_temperature`)
-- Humidity (`sensor.sht31_humidity`)
+- Planter temperature (`sensor.planter_temperature`)
+- Box temperature (`sensor.box_temperature`)
+- Soil water level (`sensor.soil_water_level`)
 - Battery voltage (`sensor.battery_voltage`)
 - Battery percent (`sensor.battery_percent`)
 - System sleep events (`esphome.battery_sleep`)
