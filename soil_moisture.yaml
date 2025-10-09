@@ -20,12 +20,30 @@ esphome:
   name: planter
   friendly_name: Planter
   on_boot:
-    priority: -10
+    priority: 800
     then:
-      - delay: 100ms
+      - deep_sleep.prevent: deep_sleep_ctrl
+      # Sample the 5V rail immediately so we can determine the active power
+      # source even before the binary sensor pipeline finishes its filtered
+      # updates. Falling back to the raw ADC value prevents the boot sequence
+      # from hanging if the filtered template sensor has not settled yet.
+      - component.update: adc_5v_raw
+      - component.update: source_voltage
+      - wait_until:
+          timeout: 1s
+          condition:
+            lambda: 'return id(source_voltage).has_state();'
       - if:
           condition:
-            binary_sensor.is_on: voltage_present # if 5v plugged in
+            lambda: |-
+              bool mains = false;
+              if (id(source_voltage).has_state()) {
+                mains = id(source_voltage).state > 4.0f;
+              } else {
+                ESP_LOGW("main", "5V reading missing, defaulting to battery mode.");
+              }
+              id(voltage_present).publish_state(mains);
+              return mains;
           then:
             - logger.log: "5V present, staying awake and updating every 30s."
             - component.update: sht31_sensor
@@ -33,30 +51,12 @@ esphome:
             - component.update: wifi_signal_dbm
             - component.update: adc_batt_raw
             - component.update: adc_5v_raw
-          else: # if on battery power
-            - logger.log: "On battery, waiting for Wi-Fi and sensors."
-            - wait_until:
-                condition:
-                  wifi.connected:
-            - wait_until:
-                condition:
-                  api.connected:
-            - logger.log: "Network ready, reading sensors."
-            - component.update: sht31_sensor
-            - component.update: box_sht31_sensor
-            - component.update: wifi_signal_dbm
-            - component.update: adc_batt_raw
-            - component.update: adc_5v_raw
-            - wait_until:
-                condition:
-                  lambda: |-
-                    return id(sht31_temperature).has_state() &&
-                           id(sht31_humidity).has_state() &&
-                           id(box_temperature).has_state() &&
-                           id(battery_voltage).has_state();
-            - logger.log: "Publishing complete, entering sleep."
-            - delay: 1s
-            - script.execute: enter_sleep
+          else:
+            - logger.log: "Running on battery, entering low-power workflow."
+            # The deep-sleep timer is already paused; hand off to the battery
+            # boot script so it can connect, publish, and then re-enable sleep
+            # once the data has landed in Home Assistant.
+            - script.execute: handle_battery_boot
 
 
 
@@ -284,6 +284,34 @@ time:
 # Sleep management script differentiating between day and night to conserve
 # battery life.
 script:
+  - id: handle_battery_boot
+    mode: restart
+    then:
+      - logger.log: "On battery, waiting for Wi-Fi and sensors."
+      - wifi.connect:
+      - wait_until:
+          condition:
+            wifi.connected:
+      - wait_until:
+          condition:
+            api.connected:
+      - logger.log: "Network ready, reading sensors."
+      - component.update: sht31_sensor
+      - component.update: box_sht31_sensor
+      - component.update: wifi_signal_dbm
+      - component.update: adc_batt_raw
+      - component.update: adc_5v_raw
+      - wait_until:
+          condition:
+            lambda: |-
+              return id(sht31_temperature).has_state() &&
+                     id(sht31_humidity).has_state() &&
+                     id(box_temperature).has_state() &&
+                     id(battery_voltage).has_state();
+      - delay: 750ms
+      - logger.log: "Publishing complete, entering sleep."
+      - script.execute: enter_sleep
+
   - id: enter_sleep
     then:
       - lambda: |-
@@ -323,6 +351,7 @@ script:
                   duration: "${night_sleep_time}"
                   battery_percent: !lambda 'return id(battery_percent).state;'
                   now: !lambda 'return id(home_time).now().strftime("%Y-%m-%d %H:%M:%S");'
+            - deep_sleep.allow: deep_sleep_ctrl
             - deep_sleep.enter:
                 id: deep_sleep_ctrl
                 sleep_duration: ${night_sleep_time}
@@ -342,6 +371,7 @@ script:
                         duration: "${low_battery_sleep_time}"
                         battery_percent: !lambda 'return id(battery_percent).state;'
                         now: !lambda 'return id(home_time).now().strftime("%Y-%m-%d %H:%M:%S");'
+                  - deep_sleep.allow: deep_sleep_ctrl
                   - deep_sleep.enter:
                       id: deep_sleep_ctrl
                       sleep_duration: ${low_battery_sleep_time}
@@ -355,6 +385,7 @@ script:
                         duration: "${sleep_time}"
                         battery_percent: !lambda 'return id(battery_percent).state;'
                         now: !lambda 'return id(home_time).now().strftime("%Y-%m-%d %H:%M:%S");'
+                  - deep_sleep.allow: deep_sleep_ctrl
                   - deep_sleep.enter:
                       id: deep_sleep_ctrl
                       sleep_duration: ${sleep_time}
