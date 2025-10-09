@@ -10,6 +10,24 @@ substitutions:
   low_battery_sleep_time: 20min
   night_sleep_time: 8h
 
+globals:
+  - id: planter_event_log_buffer
+    type: std::string
+    restore_value: true
+    initial_value: '""'
+  - id: planter_last_event_global
+    type: std::string
+    restore_value: true
+    initial_value: '""'
+  - id: planter_last_event_timestamp
+    type: std::string
+    restore_value: true
+    initial_value: '"unknown"'
+  - id: planter_last_event_voltage_text
+    type: std::string
+    restore_value: true
+    initial_value: '"unknown"'
+
 # Core ESPHome configuration and boot sequence. The on_boot logic ensures the
 # device gathers sensor data before entering deep sleep when running on
 # battery-only power.
@@ -19,6 +37,9 @@ esphome:
   on_boot:
     priority: -10
     then:
+      - lambda: |-
+          id(planter_last_event).publish_state(id(planter_last_event_global));
+          id(planter_event_log).publish_state(id(planter_event_log_buffer));
       - delay: 100ms
       - if:
           condition:
@@ -253,9 +274,80 @@ time:
   - platform: homeassistant
     id: home_time
 
+text_sensor:
+  - platform: template
+    name: "Planter Last Event"
+    id: planter_last_event
+    entity_category: diagnostic
+    update_interval: never
+  - platform: template
+    name: "Planter Event Log"
+    id: planter_event_log
+    entity_category: diagnostic
+    update_interval: never
+
 # Sleep management script differentiating between day and night to conserve
 # battery life.
 script:
+  - id: record_sleep_event
+    mode: queued
+    parameters:
+      reason: std::string
+      duration: std::string
+    then:
+      - lambda: |-
+          std::string timestamp = "unknown";
+          auto now = id(home_time).now();
+          if (now.is_valid()) {
+            char buffer[25];
+            now.strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S");
+            timestamp = buffer;
+          }
+
+          bool voltage_valid = id(battery_voltage).has_state();
+
+          char voltage_buffer[16];
+          if (!voltage_valid) {
+            snprintf(voltage_buffer, sizeof(voltage_buffer), "unknown");
+          } else {
+            snprintf(voltage_buffer, sizeof(voltage_buffer), "%.2fV", id(battery_voltage).state);
+          }
+
+          id(planter_last_event_timestamp) = timestamp;
+          id(planter_last_event_voltage_text) = voltage_buffer;
+
+          std::string message = "Sleep (" + reason + ") at " + timestamp + " | voltage=" + voltage_buffer + " | duration=" + duration;
+          id(planter_last_event_global) = message;
+
+          auto &buffer = id(planter_event_log_buffer);
+          if (!buffer.empty()) {
+            buffer.append("\n");
+          }
+          buffer.append(message);
+
+          while (buffer.size() > 4000) {
+            auto newline_pos = buffer.find('\n');
+            if (newline_pos == std::string::npos) {
+              buffer = buffer.substr(buffer.size() > 4000 ? buffer.size() - 4000 : 0);
+              break;
+            }
+            buffer.erase(0, newline_pos + 1);
+          }
+
+          id(planter_last_event).publish_state(id(planter_last_event_global));
+          id(planter_event_log).publish_state(buffer);
+      - logger.log:
+          format: "Sleep event -> %s"
+          args:
+            - 'id(planter_last_event_global).c_str()'
+      - homeassistant.event:
+          event: planter_sleep
+          data:
+            reason: !lambda 'return reason;'
+            duration: !lambda 'return duration;'
+            voltage: !lambda 'return id(planter_last_event_voltage_text);'
+            timestamp: !lambda 'return id(planter_last_event_timestamp);'
+            message: !lambda 'return id(planter_last_event_global);'
   - id: enter_sleep
     then:
       - if:
@@ -265,15 +357,10 @@ script:
               if (!time.is_valid()) return false;
               return (time.hour >= 21);
           then:
-            - logger.log: "It's nighttime, entering long sleep."
-            - homeassistant.event:
-                event: esphome.battery_sleep
-                data:
-                  device: battery
-                  reason: "night"
-                  duration: "${night_sleep_time}"
-                  voltage: !lambda 'return id(battery_voltage).state;'
-                  now: !lambda 'return id(home_time).now().strftime("%Y-%m-%d %H:%M:%S");'
+            - script.execute:
+                id: record_sleep_event
+                reason: "night"
+                duration: "${night_sleep_time}"
             - deep_sleep.enter:
                 id: deep_sleep_ctrl
                 sleep_duration: "${night_sleep_time}"
@@ -284,28 +371,18 @@ script:
                     if (!id(battery_percent).has_state()) return false;
                     return id(battery_percent).state <= 30.0f;
                 then:
-                  - logger.log: "Battery below 30%, extending daytime sleep."
-                  - homeassistant.event:
-                      event: esphome.battery_sleep
-                      data:
-                        device: battery
-                        reason: "day_low_battery"
-                        duration: "${low_battery_sleep_time}"
-                        voltage: !lambda 'return id(battery_voltage).state;'
-                        now: !lambda 'return id(home_time).now().strftime("%Y-%m-%d %H:%M:%S");'
+                  - script.execute:
+                      id: record_sleep_event
+                      reason: "day_low_battery"
+                      duration: "${low_battery_sleep_time}"
                   - deep_sleep.enter:
                       id: deep_sleep_ctrl
                       sleep_duration: "${low_battery_sleep_time}"
                 else:
-                  - logger.log: "Battery healthy, entering normal daytime sleep."
-                  - homeassistant.event:
-                      event: esphome.battery_sleep
-                      data:
-                        device: battery
-                        reason: "day"
-                        duration: "${sleep_time}"
-                        voltage: !lambda 'return id(battery_voltage).state;'
-                        now: !lambda 'return id(home_time).now().strftime("%Y-%m-%d %H:%M:%S");'
+                  - script.execute:
+                      id: record_sleep_event
+                      reason: "day"
+                      duration: "${sleep_time}"
                   - deep_sleep.enter:
                       id: deep_sleep_ctrl
                       sleep_duration: "${sleep_time}"
