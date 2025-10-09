@@ -14,8 +14,8 @@ substitutions:
 # device gathers sensor data before entering deep sleep when running on
 # battery-only power.
 esphome:
-  name: sht31_sensor
-  friendly_name: Soil
+  name: planter
+  friendly_name: Planter
   on_boot:
     priority: -10
     then:
@@ -132,8 +132,9 @@ sensor:
       id: box_temperature
       force_update: true
     humidity:
+      name: "Box Humidity"
       id: box_humidity
-      internal: true
+      force_update: true
 
   # Raw ADC reading of the 5V input, kept internal for derived sensors and only
   # sampled on-demand.
