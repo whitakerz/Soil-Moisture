@@ -85,10 +85,10 @@ ota:
 # provisioning should the device be unable to join the main network. Power save
 # is disabled and the output power is driven high to maintain a distant link.
 wifi:
-  ssid: !secret wifi_ssid
-  password: !secret wifi_password
+  ssid: !secret soil_wifi_ssid
+  password: !secret soil_wifi_password
   manual_ip:
-    static_ip: 192.168.7.105
+    static_ip: 192.168.4.240
     gateway: 192.168.7.1
     subnet: 255.255.255.0
   power_save_mode: NONE
