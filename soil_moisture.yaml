@@ -158,6 +158,13 @@ sensor:
     accuracy_decimals: 2
     filters:
       - multiply: 1.8
+    on_value:
+      then:
+        - lambda: |-
+            static bool present = false;
+            if (!present && x > 4.0) present = true;
+            else if (present && x < 3.0) present = false;
+            id(voltage_present).publish_state(present);
 
   # Raw ADC reading of the Li-Ion battery which is scaled below to volts and
   # percentage. Like the 5V channel, this is sampled only when necessary to
@@ -235,20 +242,17 @@ sensor:
           window_size: 4
           send_every: 1
 
-# binary_sensor:
-#   # Indicates whether external 5V power is present; previously used to
-#   # decide between normal updates and the low-power workflow. The device now
-#   # always follows the low-power path, so this sensor is unused. Leaving the
-#   # block commented preserves the configuration should the logic ever be
-#   # reintroduced.
-#   - platform: template
-#     id: voltage_present
-#     name: "Voltage Present"
-#     internal: true
-#     device_class: power
-#     filters:
-#       - delayed_on: 100ms
-#       - delayed_off: 300ms
+binary_sensor:
+  # Indicates whether external 5V power is present; used to decide between
+  # normal updates and the low-power workflow.
+  - platform: template
+    id: voltage_present
+    name: "Voltage Present"
+    internal: true
+    device_class: power
+    filters:
+      - delayed_on: 100ms
+      - delayed_off: 300ms
 
 globals:
   - id: last_event_text
