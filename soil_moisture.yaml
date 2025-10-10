@@ -1,5 +1,3 @@
-########## THIS VERSION DID COMPILE RIGHT BEFORE 2AM 10/10/25 ##############################
-
 # Code Parts Used From https://github.com/hanspeda/esphome_homeassistant_display.git
 # Code Assistance Provided by OpenAI codex
 
@@ -336,8 +334,7 @@ script:
                    id(battery_percent).state);
           id(last_event).publish_state(buffer);
           id(last_event_text) = buffer;
-          // TO PREVENT DUPLICATE LOG ENTRIES, COMMENT OUT THE BELOW LINE ######################################################################
-          ESP_LOGI("main", "Event stored: %s", buffer);      
+          //ESP_LOGI("main", "Event stored: %s", buffer);      
 
       - if:
           condition: # time after 21:00 (9pm)
