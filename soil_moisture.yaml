@@ -1,3 +1,5 @@
+########## THIS VERSION DID COMPILE BEFORE 2AM 10/10/25 ##############################
+
 # Code Parts Used From https://github.com/hanspeda/esphome_homeassistant_display.git
 # Code Assistance Provided by OpenAI codex
 
@@ -9,9 +11,9 @@
 # -----------------------------------------------------------------------------
 substitutions:
   run_time: 20s
-  sleep_time: 1min
+  sleep_time: 15min
   low_battery_sleep_time: 60min
-  night_sleep_time: 5h
+  night_sleep_time: 6h
 
 # Core ESPHome configuration and boot sequence. The on_boot logic ensures the
 # device gathers sensor data before entering deep sleep when running on
@@ -23,39 +25,14 @@ esphome:
     priority: 800
     then:
       - deep_sleep.prevent: deep_sleep_ctrl
-      # Sample the 5V rail immediately so we can determine the active power
-      # source even before the binary sensor pipeline finishes its filtered
-      # updates. Falling back to the raw ADC value prevents the boot sequence
-      # from hanging if the filtered template sensor has not settled yet.
+      # Sample the 5V rail immediately so voltage telemetry remains available
+      # even though the device now always follows the low-power workflow.
       - component.update: adc_5v_raw
-      - wait_until:
-          timeout: 1s
-          condition:
-            lambda: 'return id(source_voltage).has_state();'
-      - if:
-          condition:
-            lambda: |-
-              bool mains = false;
-              if (id(source_voltage).has_state()) {
-                mains = id(source_voltage).state > 4.0f;
-              } else {
-                ESP_LOGW("main", "5V reading missing, defaulting to battery mode.");
-              }
-              id(voltage_present).publish_state(mains);
-              return mains;
-          then:
-            - logger.log: "5V present, staying awake and updating every 30s."
-            - component.update: sht31_sensor
-            - component.update: box_sht31_sensor
-            - component.update: wifi_signal_dbm
-            - component.update: adc_batt_raw
-            - component.update: adc_5v_raw
-          else:
-            - logger.log: "Running on battery, entering low-power workflow."
-            # The deep-sleep timer is already paused; hand off to the battery
-            # boot script so it can connect, publish, and then re-enable sleep
-            # once the data has landed in Home Assistant.
-            - script.execute: handle_battery_boot
+      - logger.log: "Running unified low-power workflow."
+      # The deep-sleep timer is already paused; hand off to the battery boot
+      # script so it can connect, publish, and then re-enable sleep once the
+      # data has landed in Home Assistant.
+      - script.execute: handle_battery_boot
 
 
 
@@ -320,7 +297,7 @@ script:
           std::string reason;
 
           if (!now.is_valid()) reason = "invalid_time";
-          else if (now.hour >= 21) reason = "night";
+          else if (now.hour >= 22) reason = "night";
           else if (id(battery_percent).has_state() && id(battery_percent).state <= 30.0f)
             reason = "day_low_battery";
           else
@@ -334,7 +311,8 @@ script:
                    id(battery_percent).state);
           id(last_event).publish_state(buffer);
           id(last_event_text) = buffer;
-          //ESP_LOGI("main", "Event stored: %s", buffer);      
+          // DEBUG: TO PREVENT DUPLICATE LOG ENTRIES, COMMENT OUT THE BELOW LINE ///////////////
+          // ESP_LOGI("main", "Event stored: %s", buffer);      
 
       - if:
           condition: # time after 21:00 (9pm)
@@ -396,14 +374,10 @@ script:
 interval:
   - interval: 30s
     then:
-      - if:
-          condition:
-            binary_sensor.is_on: voltage_present
-          then:
-            - component.update: sht31_sensor
-            - component.update: box_sht31_sensor
-            - component.update: adc_5v_raw
-            - component.update: adc_batt_raw
+      - component.update: sht31_sensor
+      - component.update: box_sht31_sensor
+      - component.update: adc_5v_raw
+      - component.update: adc_batt_raw
 
 # Deep sleep controller that governs wake durations and responds to the
 # external wake pin.
@@ -413,4 +387,3 @@ deep_sleep:
   sleep_duration: ${sleep_time}
   wakeup_pin: GPIO39
   wakeup_pin_mode: KEEP_AWAKE
-
