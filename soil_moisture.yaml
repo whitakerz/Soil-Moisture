@@ -25,39 +25,14 @@ esphome:
     priority: 800
     then:
       - deep_sleep.prevent: deep_sleep_ctrl
-      # Sample the 5V rail immediately so we can determine the active power
-      # source even before the binary sensor pipeline finishes its filtered
-      # updates. Falling back to the raw ADC value prevents the boot sequence
-      # from hanging if the filtered template sensor has not settled yet.
+      # Sample the 5V rail immediately so voltage telemetry remains available
+      # even though the device now always follows the low-power workflow.
       - component.update: adc_5v_raw
-      - wait_until:
-          timeout: 1s
-          condition:
-            lambda: 'return id(source_voltage).has_state();'
-      - if:
-          condition:
-            lambda: |-
-              bool mains = false;
-              if (id(source_voltage).has_state()) {
-                mains = id(source_voltage).state > 4.0f;
-              } else {
-                ESP_LOGW("main", "5V reading missing, defaulting to battery mode.");
-              }
-              id(voltage_present).publish_state(mains);
-              return mains;
-          then:
-            - logger.log: "5V present, staying awake and updating every 30s."
-            - component.update: sht31_sensor
-            - component.update: box_sht31_sensor
-            - component.update: wifi_signal_dbm
-            - component.update: adc_batt_raw
-            - component.update: adc_5v_raw
-          else:
-            - logger.log: "Running on battery, entering low-power workflow."
-            # The deep-sleep timer is already paused; hand off to the battery
-            # boot script so it can connect, publish, and then re-enable sleep
-            # once the data has landed in Home Assistant.
-            - script.execute: handle_battery_boot
+      - logger.log: "Running unified low-power workflow."
+      # The deep-sleep timer is already paused; hand off to the battery boot
+      # script so it can connect, publish, and then re-enable sleep once the
+      # data has landed in Home Assistant.
+      - script.execute: handle_battery_boot
 
 
 
@@ -399,14 +374,10 @@ script:
 interval:
   - interval: 30s
     then:
-      - if:
-          condition:
-            binary_sensor.is_on: voltage_present
-          then:
-            - component.update: sht31_sensor
-            - component.update: box_sht31_sensor
-            - component.update: adc_5v_raw
-            - component.update: adc_batt_raw
+      - component.update: sht31_sensor
+      - component.update: box_sht31_sensor
+      - component.update: adc_5v_raw
+      - component.update: adc_batt_raw
 
 # Deep sleep controller that governs wake durations and responds to the
 # external wake pin.
