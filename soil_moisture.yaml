@@ -1,3 +1,5 @@
+########## THIS VERSION DID COMPILE BEFORE 2AM 10/10/25 ##############################
+
 # Code Parts Used From https://github.com/hanspeda/esphome_homeassistant_display.git
 # Code Assistance Provided by OpenAI codex
 
@@ -62,8 +64,8 @@ esphome:
 # Logging is kept at INFO level with UART disabled to reduce active-time power
 # draw while still surfacing important events.
 logger:
-  level: DEBUG
-  #baud_rate: 0
+  level: INFO
+  baud_rate: 0
 
 # ESP32 hardware configuration. The CPU frequency is reduced to save power
 # during battery operation.
@@ -334,7 +336,8 @@ script:
                    id(battery_percent).state);
           id(last_event).publish_state(buffer);
           id(last_event_text) = buffer;
-          #ESP_LOGI("main", "Event stored: %s", buffer);      
+          // TO PREVENT DUPLICATE LOG ENTRIES, COMMENT OUT THE BELOW LINE ######################################################################
+          ESP_LOGI("main", "Event stored: %s", buffer);      
 
       - if:
           condition: # time after 21:00 (9pm)
