@@ -11,7 +11,7 @@
 # -----------------------------------------------------------------------------
 substitutions:
   run_time: 20s
-  sleep_time: 15min
+  sleep_time: 30min
   low_battery_sleep_time: 60min
   night_sleep_time: 6h
 
