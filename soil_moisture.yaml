@@ -24,6 +24,7 @@ esphome:
   on_boot:
     priority: 800
     then:
+      - switch.turn_on: sensor_power_switch
       - deep_sleep.prevent: deep_sleep_ctrl
       # Sample the 5V rail immediately so voltage telemetry remains available
       # even though the device now always follows the low-power workflow.
@@ -86,6 +87,14 @@ i2c:
   scl: 22
   scan: false
   id: bus_a
+
+switch:
+  - platform: gpio
+    pin:
+      number: 17
+      mode: OUTPUT
+    id: sensor_power_switch
+    restore_mode: ALWAYS_OFF
 
 sensor:
   # SHT31 temperature and humidity readings. Automatic polling is disabled so
@@ -292,6 +301,7 @@ script:
 
   - id: enter_sleep
     then:
+      - switch.turn_off: sensor_power_switch
       - lambda: |-
           auto now = id(home_time).now();
           std::string reason;
