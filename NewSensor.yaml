@@ -20,6 +20,12 @@ esphome:
   name: planter
   friendly_name: Planter
   on_boot:
+    - priority: -300
+      then:
+        - output.turn_on: sensor_power
+    - priority: -250
+      then:
+        - delay: 5s
     - priority: 800
       then:
         - deep_sleep.prevent: deep_sleep_ctrl
@@ -82,14 +88,15 @@ captive_portal:
 i2c:
   sda: GPIO21
   scl: GPIO22
+  setup_priority: -100
+  scan: false
   id: bus_a
-  scan: true
 
-power_supply:
-  - id: sensor_vdd
+output:
+  - platform: gpio
     pin: GPIO17
-    enable_time: 10s
-    keep_on: true
+    id: sensor_power
+    inverted: false
 
 sensor:
   # SHT31 temperature and humidity readings. Automatic polling is disabled so
@@ -97,8 +104,8 @@ sensor:
   - platform: sht3xd
     id: sht31_sensor
     address: 0x44
-    power_supply: sensor_vdd
     update_interval: never
+    setup_priority: -50
     temperature:
       name: "Planter Temperature"
       id: sht31_temperature
@@ -111,8 +118,8 @@ sensor:
   - platform: sht3xd
     id: box_sht31_sensor
     address: 0x45
-    power_supply: sensor_vdd
     update_interval: never
+    setup_priority: -50
     temperature:
       name: "Box Temperature"
       id: box_temperature
