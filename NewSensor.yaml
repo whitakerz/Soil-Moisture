@@ -22,6 +22,8 @@ esphome:
   on_boot:
     priority: 800
     then:
+      - output.turn_on: sensor_power
+      - delay: 5s
       - deep_sleep.prevent: deep_sleep_ctrl
       # Sample the 5V rail immediately so voltage telemetry remains available
       # even though the device now always follows the low-power workflow.
@@ -84,6 +86,12 @@ i2c:
   scl: 22
   scan: false
   id: bus_a
+
+output:
+  - platform: gpio
+    pin: GPIO17
+    id: sensor_power
+    inverted: false
 
 sensor:
   # SHT31 temperature and humidity readings. Automatic polling is disabled so
@@ -152,6 +160,30 @@ sensor:
     update_interval: never
     accuracy_decimals: 3
     internal: true
+
+  - platform: adc
+    id: soil_moisture_raw
+    pin: GPIO34
+    name: "Soil Moisture Raw"
+    attenuation: 11db
+    update_interval: never
+    accuracy_decimals: 3
+    internal: true
+
+  - platform: copy
+    source_id: soil_moisture_raw
+    name: "Capacitive Soil Moisture"
+    id: soil_moisture_percent
+    unit_of_measurement: "%"
+    device_class: moisture
+    state_class: measurement
+    accuracy_decimals: 0
+    filters:
+      - lambda: |-
+          float percent = (x / 3.0f) * 100.0f;
+          if (percent < 0.0f) percent = 0.0f;
+          if (percent > 100.0f) percent = 100.0f;
+          return percent;
 
   - platform: copy
     source_id: adc_batt_raw
@@ -277,6 +309,7 @@ script:
       - component.update: wifi_signal_dbm
       - component.update: adc_batt_raw
       - component.update: adc_5v_raw
+      - component.update: soil_moisture_raw
       - wait_until:
           condition:
             lambda: |-
