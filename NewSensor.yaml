@@ -82,8 +82,9 @@ captive_portal:
 
 # I2C bus that hosts the SHT31 sensor.
 i2c:
-  sda: 21
-  scl: 22
+  sda: GPIO21
+  scl: GPIO22
+  setup_priority: -100
   scan: false
   id: bus_a
 
@@ -100,6 +101,7 @@ sensor:
     id: sht31_sensor
     address: 0x44
     update_interval: never
+    setup_priority: -50
     temperature:
       name: "Planter Temperature"
       id: sht31_temperature
@@ -113,6 +115,7 @@ sensor:
     id: box_sht31_sensor
     address: 0x45
     update_interval: never
+    setup_priority: -50
     temperature:
       name: "Box Temperature"
       id: box_temperature
