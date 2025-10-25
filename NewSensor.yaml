@@ -23,9 +23,6 @@ esphome:
     - priority: -300
       then:
         - output.turn_on: sensor_power
-    - priority: -250
-      then:
-        - delay: 5s
     - priority: 800
       then:
         - deep_sleep.prevent: deep_sleep_ctrl
@@ -58,8 +55,7 @@ esp32:
 api:
   id: homeassistant_api
   encryption:
-    key: !secret soilapi
-
+    key: !secret planter20api
 
 ota:
   - platform: esphome
@@ -72,7 +68,7 @@ wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
   manual_ip:
-    static_ip: 192.168.7.105
+    static_ip: 192.168.7.107
     gateway: 192.168.7.1
     subnet: 255.255.255.0
   power_save_mode: NONE
