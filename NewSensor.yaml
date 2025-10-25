@@ -20,26 +20,19 @@ esphome:
   name: planter
   friendly_name: Planter
   on_boot:
-    - priority: -300
-      then:
-        - delay: 5s
-    - priority: -250
-      then:
-        - output.turn_on: sensor_power
-    - priority: -200
-      then:
-        - delay: 5s
-    - priority: 800
-      then:
-        - deep_sleep.prevent: deep_sleep_ctrl
-        # Sample the 5V rail immediately so voltage telemetry remains available
-        # even though the device now always follows the low-power workflow.
-        - component.update: adc_5v_raw
-        - logger.log: "Running unified low-power workflow."
-        # The deep-sleep timer is already paused; hand off to the battery boot
-        # script so it can connect, publish, and then re-enable sleep once the
-        # data has landed in Home Assistant.
-        - script.execute: handle_battery_boot
+    priority: 800
+    then:
+      - output.turn_on: sensor_power
+      - delay: 5s
+      - deep_sleep.prevent: deep_sleep_ctrl
+      # Sample the 5V rail immediately so voltage telemetry remains available
+      # even though the device now always follows the low-power workflow.
+      - component.update: adc_5v_raw
+      - logger.log: "Running unified low-power workflow."
+      # The deep-sleep timer is already paused; hand off to the battery boot
+      # script so it can connect, publish, and then re-enable sleep once the
+      # data has landed in Home Assistant.
+      - script.execute: handle_battery_boot
 
 
 
