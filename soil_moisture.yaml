@@ -1,5 +1,3 @@
-########## THIS VERSION DID COMPILE BEFORE 2AM 10/10/25 ##############################
-
 # Code Parts Used From https://github.com/hanspeda/esphome_homeassistant_display.git
 # Code Assistance Provided by OpenAI codex
 
@@ -12,8 +10,8 @@
 substitutions:
   run_time: 20s
   sleep_time: 30min
-  low_battery_sleep_time: 60min
-  night_sleep_time: 6h
+  low_battery_sleep_time: 120min
+  night_sleep_time: 8h
 
 # Core ESPHome configuration and boot sequence. The on_boot logic ensures the
 # device gathers sensor data before entering deep sleep when running on
@@ -39,7 +37,7 @@ esphome:
 # Logging is kept at INFO level with UART disabled to reduce active-time power
 # draw while still surfacing important events.
 logger:
-  level: INFO
+  level: DEBUG
   baud_rate: 0
 
 # ESP32 hardware configuration. The CPU frequency is reduced to save power
