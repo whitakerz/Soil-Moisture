@@ -17,8 +17,8 @@ substitutions:
 # device gathers sensor data before entering deep sleep when running on
 # battery-only power.
 esphome:
-  name: planter
-  friendly_name: Planter
+  name: planter2
+  friendly_name: Planter2
   on_boot:
     priority: 800
     then:
@@ -93,11 +93,11 @@ sensor:
     address: 0x44
     update_interval: never
     temperature:
-      name: "Planter Temperature"
+      name: "Planter Probe Temperature"
       id: sht31_temperature
       force_update: true
     humidity:
-      name: "Soil Water Level"
+      name: "Planter Probe Humidity"
       id: sht31_humidity
       force_update: true
 
@@ -106,11 +106,11 @@ sensor:
     address: 0x45
     update_interval: never
     temperature:
-      name: "Box Temperature"
+      name: "Enclosure Temperature"
       id: box_temperature
       force_update: true
     humidity:
-      name: "Box Humidity"
+      name: "Enclosure Humidity"
       id: box_humidity
       force_update: true
 
