@@ -20,20 +20,17 @@ esphome:
   name: planter
   friendly_name: Planter
   on_boot:
-    - priority: -300
-      then:
-        - output.turn_on: sensor_power
-    - priority: 800
-      then:
-        - deep_sleep.prevent: deep_sleep_ctrl
-        # Sample the 5V rail immediately so voltage telemetry remains available
-        # even though the device now always follows the low-power workflow.
-        - component.update: adc_5v_raw
-        - logger.log: "Running unified low-power workflow."
-        # The deep-sleep timer is already paused; hand off to the battery boot
-        # script so it can connect, publish, and then re-enable sleep once the
-        # data has landed in Home Assistant.
-        - script.execute: handle_battery_boot
+    priority: 800
+    then:
+      - deep_sleep.prevent: deep_sleep_ctrl
+      # Sample the 5V rail immediately so voltage telemetry remains available
+      # even though the device now always follows the low-power workflow.
+      - component.update: adc_5v_raw
+      - logger.log: "Running unified low-power workflow."
+      # The deep-sleep timer is already paused; hand off to the battery boot
+      # script so it can connect, publish, and then re-enable sleep once the
+      # data has landed in Home Assistant.
+      - script.execute: handle_battery_boot
 
 
 
@@ -56,6 +53,7 @@ api:
   id: homeassistant_api
   encryption:
     key: !secret planter20api
+
 
 ota:
   - platform: esphome
@@ -82,17 +80,10 @@ captive_portal:
 
 # I2C bus that hosts the SHT31 sensor.
 i2c:
-  sda: GPIO21
-  scl: GPIO22
-  setup_priority: -100
+  sda: 21
+  scl: 22
   scan: false
   id: bus_a
-
-output:
-  - platform: gpio
-    pin: GPIO17
-    id: sensor_power
-    inverted: false
 
 sensor:
   # SHT31 temperature and humidity readings. Automatic polling is disabled so
@@ -101,7 +92,6 @@ sensor:
     id: sht31_sensor
     address: 0x44
     update_interval: never
-    setup_priority: -50
     temperature:
       name: "Planter Temperature"
       id: sht31_temperature
@@ -115,7 +105,6 @@ sensor:
     id: box_sht31_sensor
     address: 0x45
     update_interval: never
-    setup_priority: -50
     temperature:
       name: "Box Temperature"
       id: box_temperature
