@@ -17,8 +17,8 @@ substitutions:
 # device gathers sensor data before entering deep sleep when running on
 # battery-only power.
 esphome:
-  name: planter2
-  friendly_name: Planter2
+  name: planter
+  friendly_name: Planter
   on_boot:
     priority: 800
     then:
