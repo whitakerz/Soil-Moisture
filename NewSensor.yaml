@@ -7,7 +7,8 @@
 # touching the rest of the file. A dedicated low-battery daytime interval keeps
 # Wi-Fi performance high while still stretching runtimes.
 # -----------------------------------------------------------------------------
-#
+# test
+
 substitutions:
   run_time: 20s
   sleep_time: 30min
@@ -23,14 +24,7 @@ esphome:
   on_boot:
     - priority: -300
       then:
-<<<<<<< Updated upstream
         - switch.turn_on: sensor_vdd
-=======
-        - output.turn_on: sensor_power
-    - priority: -250
-      then:
-        - delay: 10s
->>>>>>> Stashed changes
     - priority: 800
       then:
         - deep_sleep.prevent: deep_sleep_ctrl
