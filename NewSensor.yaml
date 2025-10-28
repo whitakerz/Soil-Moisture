@@ -18,12 +18,19 @@ substitutions:
 # device gathers sensor data before entering deep sleep when running on
 # battery-only power.
 esphome:
-  name: planter
-  friendly_name: Planter
+  name: planter2
+  friendly_name: Planter2
   on_boot:
     - priority: -300
       then:
+<<<<<<< Updated upstream
         - switch.turn_on: sensor_vdd
+=======
+        - output.turn_on: sensor_power
+    - priority: -250
+      then:
+        - delay: 10s
+>>>>>>> Stashed changes
     - priority: 800
       then:
         - deep_sleep.prevent: deep_sleep_ctrl
