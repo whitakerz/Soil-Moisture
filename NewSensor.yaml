@@ -7,6 +7,7 @@
 # touching the rest of the file. A dedicated low-battery daytime interval keeps
 # Wi-Fi performance high while still stretching runtimes.
 # -----------------------------------------------------------------------------
+#
 substitutions:
   run_time: 20s
   sleep_time: 30min
@@ -20,17 +21,20 @@ esphome:
   name: planter
   friendly_name: Planter
   on_boot:
-    priority: 800
-    then:
-      - deep_sleep.prevent: deep_sleep_ctrl
-      # Sample the 5V rail immediately so voltage telemetry remains available
-      # even though the device now always follows the low-power workflow.
-      - component.update: adc_5v_raw
-      - logger.log: "Running unified low-power workflow."
-      # The deep-sleep timer is already paused; hand off to the battery boot
-      # script so it can connect, publish, and then re-enable sleep once the
-      # data has landed in Home Assistant.
-      - script.execute: handle_battery_boot
+    - priority: -300
+      then:
+        - switch.turn_on: sensor_vdd
+    - priority: 800
+      then:
+        - deep_sleep.prevent: deep_sleep_ctrl
+        # Sample the 5V rail immediately so voltage telemetry remains available
+        # even though the device now always follows the low-power workflow.
+        - component.update: adc_5v_raw
+        - logger.log: "Running unified low-power workflow."
+        # The deep-sleep timer is already paused; hand off to the battery boot
+        # script so it can connect, publish, and then re-enable sleep once the
+        # data has landed in Home Assistant.
+        - script.execute: handle_battery_boot
 
 
 
@@ -84,6 +88,13 @@ i2c:
   scl: 22
   scan: false
   id: bus_a
+
+switch:
+  - platform: gpio
+    pin: GPIO17
+    id: sensor_vdd
+    name: "Sensor Power"
+    restore_mode: ALWAYS_OFF
 
 sensor:
   # SHT31 temperature and humidity readings. Automatic polling is disabled so
