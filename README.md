@@ -84,8 +84,8 @@ Both 5 V and LiPo voltages are measured through resistor dividers.
 
 The node uses **ESPHome’s deep sleep** to minimize power consumption:
 - **Run time:** ~20 seconds per wake cycle (enough to connect and publish)
-- **Daytime sleep:** ~10 minutes when the battery is healthy
-- **Extended daytime sleep:** ~20 minutes when the battery drops below 30%
+- **Daytime sleep:** ~30 minutes when the battery is healthy
+- **Extended daytime sleep:** ~120 minutes when the battery drops below 30%
 - **Night sleep:** ~8 hours after 21:00
 - **Clock speed:** 80 MHz (underclocked for efficiency)
 
