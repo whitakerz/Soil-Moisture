@@ -1,5 +1,6 @@
 # Code Parts Used From https://github.com/hanspeda/esphome_homeassistant_display.git
 # Code Assistance Provided by OpenAI codex
+# Code Parts Used From https://community.home-assistant.io/t/delayed-initialization-i2c-bus/659101/7
 
 # -----------------------------------------------------------------------------
 # Global substitution values used throughout the configuration. Adjusting these
@@ -15,7 +16,7 @@ external_components:
 
 substitutions:
   run_time: 20s
-  sleep_time: 3min
+  sleep_time: 30min
   low_battery_sleep_time: 120min
   night_sleep_time: 8h
 
@@ -29,7 +30,7 @@ esphome:
     - priority: 700
       then:
         - switch.turn_on: sensor_vdd
-        - delay: 10s   # wait for sensor to power up
+        - delay: 500ms   # wait for sensor to power up
     - priority: 200
       then:
         - deep_sleep.prevent: deep_sleep_ctrl
