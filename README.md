@@ -53,18 +53,18 @@ Power & Dividers (left)                             ESP32 (center)
               |                                 │                  │
            [30kΩ]                               │                  │
               |                                 │                  │
-            GND                                 │                  │
-                                                │                  │
-      4.2V (LiPo)                               │                  │
-              |                                 │                  │
-           [36kΩ]                               │                  │
-              |                                 │           GPIO21 ───── SDA ───► SHT31 SDA  ───► SHT31 SDA
+            GND                                 │           GPIO34 ────────────► Capacitive Probe Output
+                                                │           GND    ────────────► SHT31 GND      ───► SHT31 GND
+      4.2V (LiPo)                               │           3.3V   ────────────► SHT31 VIN      ───► SHT31 VIN 
+              |                                 │           GPIO17 ───────► Sensor VDD Switch   ───► Probe Power Rail
+           [36kΩ]                               │           GPIO22 ────►         SCK ───► SHT31 SCL(x2)  ───► SHT31 SCL
+              |                                 │           GPIO21 ────►         SDA ───► SHT31 SDA(x2)  ───► SHT31 SDA
           ──● Node C (GPIO32 batt) ─────────────┤◄─ GPIO32 (ADC batt)
-              |                                 │           GPIO22 ────► SCK ───► SHT31 SCL  ───► SHT31 SCL
-           [100kΩ]                              │           GPIO17 ───────► Sensor VDD Switch ──► Probe Power Rail
-              |                                 │           3.3V ───────────────► SHT31 VIN  ───► SHT31 VIN
-            GND                                 │           GND ────────────────► SHT31 GND  ───► SHT31 GND
-                                                │           GPIO34 ────────────► Capacitive Probe Output
+              |                                 │                  |
+           [100kΩ]                              │                  |
+              |                                 │                  |
+            GND                                 │                  |
+                                                │                  |
             GND                                 └──────────────────┘
 
 Legend:
