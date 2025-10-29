@@ -30,6 +30,7 @@ esphome:
     - priority: 700
       then:
         - switch.turn_on: sensor_vdd
+        - delay: 1s   # wait for sensor to power up
     - priority: 200
       then:
         - deep_sleep.prevent: deep_sleep_ctrl
