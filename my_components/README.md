@@ -1,4 +1,4 @@
-# Custom ESPHome I²C Component — Delayed Initialization
+# ESP-IDF Custom ESPHome I²C Component — Delayed Initialization
 
 This guide explains how to override ESPHome’s built-in **I²C component** to delay bus initialization.  
 It fixes issues where sensors (like **BME280** or **SHT3xD**) are powered via GPIOs and not yet ready when ESPHome starts scanning the I²C bus.
