@@ -1,0 +1,256 @@
+// Common javascript functions and variables to be reused across the site. 
+var dateFormat = 'yyyy-MM-dd';
+var timeFormat = 'HH:mm:ss';
+var dateTimeFormat = `${dateFormat} ${timeFormat}`;
+var zeroDate = `0000-00-00`;
+var zeroTime = '00:00:00';
+var zeroDateTime = `${zeroDateTime} ${zeroTime}`;
+
+var AccessToken = false;
+
+async function selectBoxFill(URL, selector, key_name, value_name, first_option) {
+	let obj = await $.post(URL, { AccessToken }, null, "json");
+	// we need to always return a promise or the chain run out of order, giving undefined results. 
+	let sel = $(selector);
+	//console.log(obj);
+	if (obj.success) {
+		let rows = obj.rows;
+		if (typeof first_option != 'undefined') {
+			sel.append(
+				$('<option>', {
+					value: 0,
+					text: first_option
+				})
+			);
+		}
+		if (!rows) throw "Error: undefined rows."
+		rows.forEach(r => {
+			let key = r[key_name]; // can't use compound elements in a json object. 
+			let Name = r[value_name];
+			sel.append($('<option>', {
+				value: key,
+				text: Name
+			}));
+		});
+		return rows; // useful for debugging!
+	} throw obj.error_msg;
+}
+
+async function selectBoxFillEx(URL, options_ar, selector, key_name, value_name, first_option) {
+	// If you have extra parameters you can pass them in the options_ar. For example: [{"EmployeeID":EmployeeID}]
+	let data = { AccessToken };
+	options_ar.forEach((ob, index) => {
+		Object.assign(data, ob);
+	});
+	let obj = await $.post(URL, data, null, "json");
+	// we need to always return a promise or the chain run out of order, giving undefined results. 
+	let sel = $(selector);
+	//console.log("selectBoxFill",obj);
+	if (obj.success) {
+		let rows = obj.rows;
+		if (typeof first_option != 'undefined') {
+			sel.append(
+				$('<option>', {
+					value: 0,
+					text: first_option
+				})
+			);
+		}
+		if (!rows) throw "Error: undefined rows."
+		rows.forEach(r => {
+			let key = r[key_name]; // can't use compound elements in a json object. 
+			let Name = r[value_name];
+			sel.append($('<option>', {
+				value: key,
+				text: Name
+			}));
+		});
+		return rows; // useful for debugging!
+	} throw obj.error_msg;
+}
+
+async function selectPairFill(URL, selector) { // json files
+	let obj = await $.getJSON(URL);
+	//console.log(obj);
+	let sel = $(selector);
+	for (let key in obj) {
+		let value = obj[key];
+		sel.append(
+			$('<option>', {
+				value: key,
+				text: value
+			})
+		);
+	}
+	return obj;
+}
+
+function toLocalTimeArray(data) {
+	data.forEach(d => {
+		if (d.t != zeroDateTime) { // ignore zero date
+			d.t = luxon.DateTime.fromFormat(d.t, dateTimeFormat, { zone: "utc" }).toLocal().toFormat(dateTimeFormat);
+		}
+	});
+}
+
+// dateTime
+function toLocalDateTime(utc_date_time, format = 'iso') { // full date time input
+	if (utc_date_time == zeroDateTime) return utc_date_time;
+	//return luxon.DateTime.fromFormat(utc_date_time, dateTimeFormat, { zone: "utc" }).toLocal().toFormat(dateTimeFormat);
+	let t = luxon.DateTime.fromFormat(utc_date_time, dateTimeFormat, { zone: "utc" }).toLocal();
+	switch (format) {
+		case 'iso': return t.toISO();
+		case 'sql': return t.toFormat(dateTimeFormat);
+	}
+}
+function toUtcDateTime(local_date_time) {
+	return luxon.DateTime.fromFormat(local_date_time, dateTimeFormat).toUTC().toFormat(dateTimeFormat);
+}
+
+// time only
+function toLocalTime(utc_time) { // time only input
+	if (utc_time == zeroTime) return utc_time;
+	return luxon.DateTime.fromFormat(utc_time, timeFormat, { zone: "utc" }).toLocal().toFormat(timeFormat);
+}
+function toUtcTime(local_time) { // time only input
+	let [hours, minutes, seconds] = local_time.split(':').map(Number);
+	if (seconds === undefined) seconds = 0; // time may or may not have seconds field.
+	return luxon.DateTime.local().set({ hours, minutes, seconds }).toUTC().toFormat(timeFormat);
+}
+
+function transformData(transform, sample, format = 'iso') { // single sample
+	let s = {};
+	s.x = toLocalDateTime(sample.t, format);
+	let TransformTypeID = (transform && transform.TransformTypeID) ? transform.TransformTypeID : 0;
+	switch (TransformTypeID) {
+		case 0:
+			s.y = Number(sample.v);
+			break;
+		case 1: // Linear
+			s.y = Number(sample.v) * Number(transform.x[1]) + Number(transform.x[0]);
+			break;
+		case 2: // Polynomial
+			let pow;
+			pow = 1;
+			val = Number(transform.x[0]);
+			for (j = 1; j < 4; j++) {
+				pow *= Number(sample.v);
+				val += Number(transform.x[$j]) * pow;
+			}
+			s.y = val;
+			break;
+		case 3: // piecewise linear curve.
+			s.y = pieceWise(transform, Number(sample.v));
+			break;
+	}
+	return s;
+}
+
+function transformDataSamples(transform, samples) { // transform array
+	let s = [];
+	samples.forEach(sample => {
+		s.push(transformData(transform, sample));
+	})
+	return s;
+}
+
+function pieceWise(transform, value) {
+	const { x, y } = transform;
+	
+	if(value < x[0]) return y[0];
+	for (let i = 0; i < x.length - 1; i++) {
+		if ((x[i] <= value) && (value <= x[i + 1])) {
+			// linear interpolate. 
+			return (value - x[i]) * (y[i + 1] - y[i]) / (x[i + 1] - x[i]) + y[i];
+		}
+	}
+	// not found in range, so clip to highest non-zero y value. 
+	return y[y.length - 1];
+}
+
+
+
+function catchMsg(er, selector) {
+	let msg;
+	if (typeof er == 'undefined') {
+		msg = 'Error: Undefined Error.';
+	} else if (typeof er == "string") {
+		msg = er;
+	} else {
+		switch (er.status) {
+			case 400: msg = `Error: Malformed request`; break;
+			case 401: msg = `Error: Unauthorized Access`; break;
+			case 404: msg = `Error: Page not Found`; break;
+			case 429: msg = `Error: You've made too many requests, try again in 15 minutes.`; break;
+			case 500: msg = `Error: Internal Server Error`; break;
+			default: msg = `Error: Unknown Error - ${er.status}`;
+		}
+	}
+	$(selector).html(msg);
+}
+
+
+function accessCheck() {
+	let str = window.localStorage.getItem('access');
+	//console.log(str);
+	let authorized = false;
+	if (str) {
+		let access = JSON.parse(str);
+		//console.log([luxon.DateTime.utc().toFormat(dateTimeFormat), access.expires]);
+		if (luxon.DateTime.utc() < luxon.DateTime.fromFormat(access.expires, dateTimeFormat)) { // expires in utc
+			authorized = true;
+			AccessToken = access.token;
+			RouteKey = access.route_key;
+			$('nav').addClass('authorized');
+		}
+		//console.log([access, authorized]);
+	}
+	if ($('body').hasClass('need-auth') && !authorized) {
+		window.location.assign('/signinv');
+	}
+}
+
+function setAccessTokenSubdomain() {
+	// This copies the access tokens fromm vegeworx.com, 
+	// to plant.vegeworx.com.  Allowing the access system to 
+	// work with both domains.  Call this routine from window.load 
+	// on any page that is targetted after a sign in, such as /user/dash. 
+	// Make sure the target page has an iframe of form:
+	// <iframe src="https://plants.vegeworx.com/framework/localStorage.html" class="invisible"></iframe>
+	let win = document.getElementById('subdomain-iframe').contentWindow;
+	let key = 'access';
+	let astr = window.localStorage.getItem(key);
+	if (!astr) {
+		console.log("Access token not set.");
+		return;
+	}
+	let value = JSON.parse(astr);
+	//console.log(value);
+	// load previously saved data
+	win.postMessage(JSON.stringify({ method: "set", key, value }), "*");
+	//win.postMessage(JSON.stringify({ method: "get", key }), "*"); 
+}
+
+async function signout() {
+	// snick todo redirect on access.created expired. 
+	window.localStorage.clear();
+	try {
+		await $.post('/signout', { AccessToken }, null, "json");
+	} catch (er) {
+		catchMsg(er, '#error-msg');
+	}
+	window.location.assign('/');
+}
+
+$(() => {
+	$('.expandable-header').click((ev) => {
+		$('.expandable-header i').toggleClass('fa-plus fa-minus');
+		$('.expandable-content').slideToggle();
+	});
+
+	$('#signout').click(ev => { signout(); });
+	accessCheck();
+});
+
+
+
