@@ -9,6 +9,11 @@
 # -----------------------------------------------------------------------------
 # test
 
+external_components:
+  - source: 
+      type: local
+      path: my_components
+
 substitutions:
   run_time: 20s
   sleep_time: 30min
@@ -22,10 +27,10 @@ esphome:
   name: planter
   friendly_name: Planter
   on_boot:
-    - priority: -300
+    - priority: 700
       then:
         - switch.turn_on: sensor_vdd
-    - priority: 800
+    - priority: 200
       then:
         - deep_sleep.prevent: deep_sleep_ctrl
         # Sample the 5V rail immediately so voltage telemetry remains available
