@@ -7,7 +7,6 @@
 # touching the rest of the file. A dedicated low-battery daytime interval keeps
 # Wi-Fi performance high while still stretching runtimes.
 # -----------------------------------------------------------------------------
-# test
 
 external_components:
   - source: 
