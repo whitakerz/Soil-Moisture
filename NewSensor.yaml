@@ -16,7 +16,7 @@ external_components:
 
 substitutions:
   run_time: 20s
-  sleep_time: 30min
+  sleep_time: 3min
   low_battery_sleep_time: 120min
   night_sleep_time: 8h
 
@@ -30,7 +30,7 @@ esphome:
     - priority: 700
       then:
         - switch.turn_on: sensor_vdd
-        - delay: 500ms   # wait for sensor to power up
+        - delay: 100ms   # wait for sensor to power up
     - priority: 200
       then:
         - deep_sleep.prevent: deep_sleep_ctrl
@@ -419,6 +419,7 @@ interval:
       - component.update: box_sht31_sensor
       - component.update: adc_5v_raw
       - component.update: adc_batt_raw
+      - component.update: soil_moisture_raw
 
 # Deep sleep controller that governs wake durations and responds to the
 # external wake pin.
