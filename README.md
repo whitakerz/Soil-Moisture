@@ -1,119 +1,125 @@
-# 🌱 ESPHome Soil Sensor Node
+## 🌱 ESPHome Soil Sensor Node
 
-A self-contained, battery-powered **soil environment monitor** using **ESPHome** and **ESP32**, designed for long-term, ultra-low-power operation.
-It measures temperature, humidity, raw soil moisture, and power levels, intelligently enters deep sleep, and integrates seamlessly with **Home Assistant**.
+A **self-contained**, battery-powered **soil environment monitor** using **ESPHome** and **ESP32**, designed for **long-term, ultra-low-power operation**.  
+It measures temperature, humidity, soil moisture, and system voltages, enters deep sleep between updates, and integrates natively with **Home Assistant**.
 
 ---
 
 ## Project Overview
 
-This project is a **low-power soil monitoring node** built for remote or solar-assisted deployments.
-It records **temperature, humidity, capacitive soil moisture**, and **battery voltage**, dynamically manages sleep cycles (day vs. night), and reports data to Home Assistant.
+This project is a **low-power soil monitoring node** for remote or solar-assisted deployments.  
+It records:
 
-The design prioritizes:
-- High measurement accuracy (dual SHT31 sensors with managed power sequencing)
-- Stable ADC-based power sensing and raw-to-percent conversion for capacitive probes
-- Multi-hour deep sleep for energy conservation
-- Full automation and logging via Home Assistant
+- Air and soil **temperature**
+- **Humidity**
+- **Capacitive soil moisture**
+- **Battery voltage**
+
+The system dynamically manages sleep cycles, optimizing performance and energy use.
+
+**Design goals:**
+- High measurement accuracy using dual SHT31 sensors  
+- Reliable analog sensing with stable divider ratios  
+- Complete power isolation of sensors via MOSFET switching  
+- Multi-hour deep sleep for minimal idle current  
+- Full telemetry via Home Assistant
 
 ---
 
 ## Hardware Used
 
-- **Microcontroller:** ESP32 Dev Board  
+- **MCU:** ESP32 Dev Board  
 - **Sensors:**
-  - Sensirion SHT31 temperature & humidity sensor for planter probe readings (I²C, 0x44)
-  - Sensirion SHT31 temperature probe dedicated to enclosure monitoring (I²C, 0x45)
-  - [Vegetronix VH400](https://www.vegetronix.com/Products/VH400/) capacitive soil moisture probe with analog readout (GPIO34)
+  - SHT31 temperature & humidity sensor (I²C, 0x44)  
+  - SHT31 enclosure T/H sensor (I²C, 0x45)  
+  - [Vegetronix VH400](https://www.vegetronix.com/Products/VH400/) capacitive moisture probe (analog GPIO34)
 - **Battery:** Single-cell LiPo (4.2 V max)  
-- **Voltage Dividers:** For battery (GPIO32) and 5 V sensing (GPIO36)  
-- **Wake Logic:** GPIO39 (wake from deep sleep)  
-- **Sensor Power Gate:** GPIO17 (switchable VDD rail for probe warm-up)
-- **LED Indicator:** GPIO22 (awake state)
+- **Voltage Dividers:** Battery (GPIO32) and 5 V rail (GPIO36)  
+- **Wake Logic:** GPIO39 (external wake)  
+- **Sensor Power Switch:** GPIO17 → IRLZ44N gate (low-side switch for sensor ground rail)  
+- **LED Indicator:** GPIO22 (awake state)  
 - **Resistors:** 20 kΩ, 30 kΩ, 36 kΩ, 100 kΩ, 200 Ω  
-- **Miscellaneous:** JST connectors, wiring harnesses, optional enclosure  
+- **MOSFET:** IRLZ44N logic-level N-channel  
+  - Gate: GPIO17 via 200 Ω resistor  
+  - Gate pull-down: 100 kΩ → GND  
+  - Drain: sensor ground return  
+  - Source: system ground  
 
 ---
 
 ## Wiring Diagram
 
 ```
-Power & Dividers (left)                             ESP32 (center)
-───────────────────────────                   ────────────────────────
-          +5V supply                            ┌──────────────────┐
-              |                                 │      ESP32       │
-           [20kΩ]                               │                  │
-              |                                 │                  │
-          ──● Node A (GPIO36 sense) ────────────┤◄─ GPIO36 (ADC 5V)
-              |                                 │                  │
-              |                                 │                  │
-            (series link)                       │                  │
-              |                                 │                  │
-          ──● Node B (GPIO39 wake) ─────────────┤◄─ GPIO39 (wakeup)
-              |                                 │                  │
-           [30kΩ]                               │                  │
-              |                                 │                  │
-            GND                                 │           GPIO34 ────────────► Capacitive Probe Output
-                                                │           GND    ────────────► SHT31 GND      ───► SHT31 GND
-      4.2V (LiPo)                               │           3.3V   ────────────► SHT31 VIN      ───► SHT31 VIN 
-              |                                 │           GPIO17 ───────► Sensor VDD Switch   ───► Probe Power Rail
-           [36kΩ]                               │           GPIO22 ────►         SCK ───► SHT31 SCL(x2)  ───► SHT31 SCL
-              |                                 │           GPIO21 ────►         SDA ───► SHT31 SDA(x2)  ───► SHT31 SDA
-          ──● Node C (GPIO32 batt) ─────────────┤◄─ GPIO32 (ADC batt)
-              |                                 │                  |
-           [100kΩ]                              │                  |
-              |                                 │                  |
-            GND                                 │                  |
-                                                │                  |
-            GND                                 └──────────────────┘
+Power & Dividers (left)                          ESP32 (center)                         Sensors & Switched Rail (right)
+───────────────────────────────────        ────────────────────────────────        ─────────────────────────────────────────────
++5V SUPPLY                                 ┌──────────────────────────────┐        +3.3V or +5V  ──────►  V+ to SHT31x, VH400
+  │                                        │            ESP32             │               │
+[20kΩ]                                     │                              │               │
+  │                                       ◄┤ GPIO36  ADC_5V  ◄── Node_A ─●────────────────┘
+● Node_A (5V sense tap)                    │                              │
+  │                                        │                              │
+[30kΩ]                                     │                              │
+  │                                        │                              │
+ GND                                       │                              │
+                                           │                              │
+LiPo 4.2V max                              │                              │
+  │                                       ◄┤ GPIO32  ADC_BATT ◄── Node_C ─●
+[36kΩ]                                     │                              │
+  │                                        │                              │
+● Node_C (LiPo sense tap)                  │                              │
+  │                                        │                              │
+[100kΩ]                                    │                              │
+  │                                        │      ─┤ GPIO34   ADC_SOIL  ──► VH400 analog out
+ GND                                       │      ─┤ GPIO21   I2C_SDA   ──► SDA of SHT31 @0x44, @0x45
+                                           │      ─┤ GPIO22   LED_OUT   ──► LED (+ series R)
+Optional wake source ────────────────►    ◄┤ GPIO39   WAKE_IN
+                                           │      ─┤ GPIO17   VDD_SW    ──200Ω──► IRLZ44N GATE
+                                           │                              │
+                                           │                           [100kΩ] gate pull-down → GND
+                                           └──────────────────────────────┘
 
-Legend:
-  [value]   = resistor
-  ● Node A  = divider tap for 5V sense (GPIO36)
-  ● Node B  = divider mid / wake input (GPIO39)
-  ● Node C  = divider tap for LiPo sense (GPIO32)
-  LED       = “Awake LED” driven by GPIO22 (add a series resistor)
+SENSOR GROUND SWITCH (low-side)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+All sensor grounds join Sensor_GND ───────────────► IRLZ44N DRAIN     IRLZ44N SOURCE ─────────────► SYSTEM GND
+
+Notes:
+- IRLZ44N acts as a low-side switch for Sensor_GND. GPIO17 HIGH = sensors ON; LOW = sensors OFF.
+- Every sensor ground connects to Sensor_GND, not system ground.
+- If I²C lines back-power sensors, add 1–2 kΩ series resistors in SDA/SCL near the ESP32.
+- Divider ratios: 5 V → 20k/30k; LiPo → 36k/100k.
 ```
-
-GPIO39 doubles as a **wake pin** for deep sleep. GPIO22 drives an LED to indicate awake cycles.  
-Both 5 V and LiPo voltages are measured through resistor dividers.
 
 ---
 
 ## Power Management
 
-The node uses **ESPHome’s deep sleep** to minimize power consumption:
-- **Run time:** ~20 seconds per wake cycle (enough to connect and publish)
-- **Daytime sleep:** ~30 minutes when the battery is healthy
-- **Extended daytime sleep:** ~120 minutes when the battery drops below 30%
-- **Night sleep:** ~8 hours after 21:00
-- **Clock speed:** 80 MHz (underclocked for efficiency)
+- **Run time:** ~20 s active per wake  
+- **Sleep intervals:**  
+  - 30 min (normal)  
+  - 120 min (low battery)  
+  - 8 h (nighttime)  
+- **Clock speed:** 80 MHz  
+- **Active current:** ≈ 15 mA  
+- **Sleep current:** < 100 µA  
 
-Active current: ≈ 15 mA  
-Sleep current: < 100 µA  
+All sensors and ADCs are powered down through the MOSFET when sleeping.
 
 ---
 
-## Software (ESPHome)
+## ESPHome Configuration
 
-Core configuration features:
-- **Platform:** ESP32 using **ESP-IDF** framework
-- **Sensors:**
-  - SHT31 (Planter probe temperature & humidity via I²C at 0x44)
-  - Secondary SHT31 for enclosure temperature & humidity (I²C at 0x45)
-  - Capacitive soil moisture probe on ADC (GPIO34) with software scaling to percentage
-  - ADC for battery (GPIO32) and 5 V rail (GPIO36) readings
-- **Automation:**
-  - Sleep schedule controlled by real time from Home Assistant
-  - Adaptive daytime sleep that doubles the interval when the battery falls below 30%
-  - Sends custom `esphome.planter_sleep` events to HA, including a low-battery reason when the extended sleep is used
-- **Networking:** Wi-Fi runs at full power with fast connect enabled to maintain a stable link to distant access points.
-- **Battery logic:**
-  - Nonlinear voltage-to-percentage curve tuned for LiPo cells
-  - Voltage smoothing with sliding window average
-- **Local components:** External helpers in `my_components/` are loaded via `external_components` for custom sensor handling.
+**Platform:** ESP32 using **ESP-IDF**
 
-Build and flash:
+**Core features:**
+- Dual SHT31 I²C sensors (0x44, 0x45)
+- VH400 analog soil probe (GPIO34)
+- Battery & 5 V sense via ADC (GPIO32, GPIO36)
+- Adaptive deep sleep intervals
+- MOSFET power control on GPIO17
+- Sliding window battery smoothing
+- Custom event publishing: `esphome.planter_sleep`
+
+**Build and flash:**
 ```bash
 esphome run NewSensor.yaml
 ```
@@ -122,68 +128,54 @@ esphome run NewSensor.yaml
 
 ## Home Assistant Integration
 
-Data is exposed via ESPHome’s native API:
-- Planter probe temperature (`sensor.planter_probe_temperature`)
-- Planter probe humidity (`sensor.planter_probe_humidity`)
-- Enclosure temperature (`sensor.enclosure_temperature`)
-- Enclosure humidity (`sensor.enclosure_humidity`)
-- Capacitive soil moisture percent (`sensor.capacitive_soil_moisture`)
-- Raw soil moisture voltage (`sensor.soil_moisture_raw`, internal)
-- Battery voltage (`sensor.battery_voltage`)
-- Battery percent (`sensor.battery_percent`)
-- Wi-Fi RSSI (`sensor.planter_wifi_signal`)
-- System sleep events (`esphome.planter_sleep`)
+Entities:
+- `sensor.planter_probe_temperature`
+- `sensor.planter_probe_humidity`
+- `sensor.enclosure_temperature`
+- `sensor.enclosure_humidity`
+- `sensor.capacitive_soil_moisture`
+- `sensor.soil_moisture_raw`
+- `sensor.battery_voltage`
+- `sensor.battery_percent`
+- `sensor.planter_wifi_signal`
+- `esphome.planter_sleep` (event)
 
-These can trigger Home Assistant automations or be displayed in dashboards.
+These can be used in automations, dashboards, or scripts.
+
+---
+
+## I²C and Power Initialization
+
+On boot:
+1. ESP32 asserts GPIO17 HIGH → enables MOSFET → sensors powered.  
+2. 100–200 ms delay for VDD stabilization.  
+3. I²C bus initializes, ADCs sampled.  
+4. ESP enters main loop, then deep sleep after telemetry.
+
+This sequence prevents bus lockups from slow sensor startup.
 
 ---
 
 ## Enclosure
 
-Optional 3D-printed enclosure fits:
-- ESP32 Dev board  
-- SHT31 sensor (vented section for airflow)  
-- 1000 mAh LiPo battery  
+Optional 3D-printed case fits:
+- ESP32 dev board  
+- 1000 mAh LiPo  
+- SHT31 enclosure sensor (vented section)  
 
-Can be mounted near plant beds or outdoor pots. STL files can be created in Fusion 360 or ordered via Fiverr.
-
----
-
-## I²C Initialization Notes
-
-The SHT31 probes and the capacitive soil sensor share the switched sensor power rail. On boot, the firmware asserts the `sensor_vdd` switch (GPIO17) before the I²C bus becomes active, then immediately runs a second `on_boot` stage for ADC warm-up and manual sensor polls once power is stable. This custom workaround avoids bus lockups from slow probe ramp-up; if you add more devices, keep them behind the same power switch or adjust the boot priorities so VDD settles ahead of any I²C transactions.
+Mount near plants or integrate with solar charging.
 
 ---
 
-## Credits & Inspiration
+## Credits
 
-- [ESPHome Project](https://esphome.io)  
-- [Sensirion SHT3x Series](https://www.sensirion.com)  
-- Configuration & design by **Zach Whitaker**  
+- [ESPHome](https://esphome.io)  
+- [Sensirion SHT3x](https://www.sensirion.com)  
+- Design by **Zach Whitaker**
 
 ---
 
 ## License
 
 **GNU General Public License v3.0 (GPL-3.0)**  
-This project is open-source under the GPL.  
-See [GNU GPL-3.0 License](https://www.gnu.org/licenses/gpl-3.0.en.html) for full details.
-
----
-
-## Getting Started
-
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/whitakerz/ESP32-Soil-Sensor.git
-   cd ESP32-Soil-Sensor
-   ```
-2. Update WiFi and API keys in `secrets.yaml`.
-3. Flash to your ESP32:
-   ```bash
-   esphome run NewSensor.yaml
-   ```
-4. Add the device to Home Assistant.
-5. Optionally print and assemble an enclosure.
-
----
+[Full text](https://www.gnu.org/licenses/gpl-3.0.en.html)
