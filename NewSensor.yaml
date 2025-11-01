@@ -16,7 +16,7 @@ external_components:
 
 substitutions:
   run_time: 20s
-  sleep_time: 3min
+  sleep_time: 30min
   low_battery_sleep_time: 120min
   night_sleep_time: 8h
 
@@ -173,7 +173,7 @@ sensor:
 
   - platform: adc
     id: soil_moisture_raw
-    pin: GPIO34
+    pin: GPIO33
     name: "Soil Moisture Raw"
     attenuation: 11db
     update_interval: never
@@ -187,7 +187,7 @@ sensor:
     unit_of_measurement: "%"
     device_class: moisture
     state_class: measurement
-    accuracy_decimals: 0
+    accuracy_decimals: 1
     filters:
       - lambda: |-
           float percent = (x / 3.0f) * 100.0f;
