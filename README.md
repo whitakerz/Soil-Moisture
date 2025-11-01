@@ -51,34 +51,36 @@ The system dynamically manages sleep cycles, optimizing performance and energy u
 ## Wiring Diagram
 
 ```
-Battery V+ (to sensors)                     ESP32 (center)                         Sensors & Boost Converter (right)
-───────────────────────────────────        ────────────────────────────────        ─────────────────────────────────────────────
-LiPo 4.2 V max                             ┌──────────────────────────────┐        Boost converter (3.7–4.2 V→5 V) ──► VH400 V+
-  │                                        │            ESP32             │               │
-  │                                       ◄┤ GPIO36  ADC_VBOOST ◄── Node_A ─●─────────────┘
-[30 kΩ]                                    │                              │
-  │                                        │                              │
- GND                                       │                              │
-                                           │                              │
-LiPo 4.2 V max                             │                              │
-  │                                       ◄┤ GPIO32  ADC_BATT ◄── Node_C ─●
-[36 kΩ]                                    │                              │
-  │                                        │                              │
-● Node_C (LiPo sense tap)                  │                              │
-  │                                        │                              │
-[100 kΩ]                                   │                              │
-  │                                        │      ─┤ GPIO34   ADC_SOIL  ──► VH400 analog out
- GND                                       │      ─┤ GPIO21   I2C_SDA   ──► SDA of SHT31 @0x44, @0x45
-                                           │      ─┤ GPIO22   LED_OUT   ──► LED (+ series R)
-Optional wake source ────────────────►    ◄┤ GPIO39   WAKE_IN
-                                           │      ─┤ GPIO17   VDD_SW    ──200 Ω──► IRLZ44N GATE
-                                           │                              │
-                                           │                           [100 kΩ] gate pull-down → GND
-                                           └──────────────────────────────┘
+Battery V+ (to sensors)                     ESP32 (center)                   Sensors 
+─────────────────────────────        ─────────────────────────────      ────────────────
+5V                                   ┌──────────────────────────┐        
+  │                                  |                          |
+[30 kΩ]                              │            ESP32         │
+● Node (5V sense tap)               ◄┤ GPIO36  adc_5v_raw       |   
+  |                                 ◄| GPIO39  WAKE_IN          |
+[20 kΩ]                              │                          │
+  │                                  │                          │
+ GND                                 │                          │
+                                     │                          │
+LiPo 4.2 V max                      ◄│  ----------------------- │ ------► SHT31 (4.2V)  
+  │                                  |                          |         VH400 (1.5–4.5V → 5 V) 
+[36 kΩ]                              │                          │         
+  │                                  │                          │
+● Node (LiPo sense tap)             ◄│ GPIO32 adc_batt_raw      │
+  │                                  │                          │
+[100 kΩ]                             │                          │
+  │                                  │    ─┤ GPIO34   ADC_SOIL  ──► VH400 analog out
+ GND                                 │    ─┤ GPIO21   I2C_SDA   ──► SDA of SHT31 @0x44, @0x45
+                                     │    ─┤ GPIO22   LED_OUT   ──► LED (+ series R)
+             ┤                       |
+                                     │    ─┤ GPIO17   VDD_SW    ──200 Ω──► IRLZ44N GATE
+                                     │                          [100 kΩ] gate pull-down → GND
+                                     │                          |
+                                     └──────────────────────────┘
 
 SENSOR GROUND SWITCH (low-side)
-──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-All sensor grounds join Sensor_GND ───────────────► IRLZ44N DRAIN     IRLZ44N SOURCE ─────────────► SYSTEM GND
+──────────────────────────────────────────────────────────────────────────────────────────────────
+All sensor grounds join Sensor_GND ───────► IRLZ44N DRAIN     IRLZ44N SOURCE ───────► SYSTEM GND
 
 Power Paths:
 - Battery V+ ──► SHT31x V+ (3.7–4.2 V)
