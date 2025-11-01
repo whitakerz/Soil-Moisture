@@ -1,4 +1,4 @@
-## 🌱 ESPHome Soil Sensor Node
+# 🌱 ESPHome Soil Sensor Node
 
 A **self-contained**, battery-powered **soil environment monitor** using **ESPHome** and **ESP32**, designed for **long-term, ultra-low-power operation**.  
 It measures temperature, humidity, soil moisture, and system voltages, enters deep sleep between updates, and integrates natively with **Home Assistant**.
@@ -32,9 +32,10 @@ The system dynamically manages sleep cycles, optimizing performance and energy u
 - **Sensors:**
   - SHT31 temperature & humidity sensor (I²C, 0x44)  
   - SHT31 enclosure T/H sensor (I²C, 0x45)  
-  - [Vegetronix VH400](https://www.vegetronix.com/Products/VH400/) capacitive moisture probe (analog GPIO34)
+  - [Vegetronix VH400](https://www.vegetronix.com/Products/VH400/) capacitive moisture probe (analog GPIO34) powered through a **boost converter (5 V output)**
 - **Battery:** Single-cell LiPo (4.2 V max)  
-- **Voltage Dividers:** Battery (GPIO32) and 5 V rail (GPIO36)  
+- **Sensor Power Rail:** Sensors now powered from **battery V+** instead of a regulated 5 V line.  
+- **Voltage Dividers:** Battery (GPIO32) and boost rail (GPIO36)  
 - **Wake Logic:** GPIO39 (external wake)  
 - **Sensor Power Switch:** GPIO17 → IRLZ44N gate (low-side switch for sensor ground rail)  
 - **LED Indicator:** GPIO22 (awake state)  
@@ -50,50 +51,50 @@ The system dynamically manages sleep cycles, optimizing performance and energy u
 ## Wiring Diagram
 
 ```
-Power & Dividers (left)                          ESP32 (center)                         Sensors & Switched Rail (right)
+Battery V+ (to sensors)                     ESP32 (center)                         Sensors & Boost Converter (right)
 ───────────────────────────────────        ────────────────────────────────        ─────────────────────────────────────────────
-+5V SUPPLY                                 ┌──────────────────────────────┐        +3.3V or +5V  ──────►  V+ to SHT31x, VH400
+LiPo 4.2 V max                             ┌──────────────────────────────┐        Boost converter (3.7–4.2 V→5 V) ──► VH400 V+
   │                                        │            ESP32             │               │
-[20kΩ]                                     │                              │               │
-  │                                       ◄┤ GPIO36  ADC_5V  ◄── Node_A ─●────────────────┘
-● Node_A (5V sense tap)                    │                              │
-  │                                        │                              │
-[30kΩ]                                     │                              │
+  │                                       ◄┤ GPIO36  ADC_VBOOST ◄── Node_A ─●─────────────┘
+[30 kΩ]                                    │                              │
   │                                        │                              │
  GND                                       │                              │
                                            │                              │
-LiPo 4.2V max                              │                              │
+LiPo 4.2 V max                             │                              │
   │                                       ◄┤ GPIO32  ADC_BATT ◄── Node_C ─●
-[36kΩ]                                     │                              │
+[36 kΩ]                                    │                              │
   │                                        │                              │
 ● Node_C (LiPo sense tap)                  │                              │
   │                                        │                              │
-[100kΩ]                                    │                              │
+[100 kΩ]                                   │                              │
   │                                        │      ─┤ GPIO34   ADC_SOIL  ──► VH400 analog out
  GND                                       │      ─┤ GPIO21   I2C_SDA   ──► SDA of SHT31 @0x44, @0x45
                                            │      ─┤ GPIO22   LED_OUT   ──► LED (+ series R)
 Optional wake source ────────────────►    ◄┤ GPIO39   WAKE_IN
-                                           │      ─┤ GPIO17   VDD_SW    ──200Ω──► IRLZ44N GATE
+                                           │      ─┤ GPIO17   VDD_SW    ──200 Ω──► IRLZ44N GATE
                                            │                              │
-                                           │                           [100kΩ] gate pull-down → GND
+                                           │                           [100 kΩ] gate pull-down → GND
                                            └──────────────────────────────┘
 
 SENSOR GROUND SWITCH (low-side)
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 All sensor grounds join Sensor_GND ───────────────► IRLZ44N DRAIN     IRLZ44N SOURCE ─────────────► SYSTEM GND
 
+Power Paths:
+- Battery V+ ──► SHT31x V+ (3.7–4.2 V)
+- Battery V+ ──► Boost Converter (5 V out) ──► VH400 V+
+- Boost converter GND, SHT31 GND, and VH400 GND all connect to Sensor_GND (switched by MOSFET)
+
 Notes:
-- IRLZ44N acts as a low-side switch for Sensor_GND. GPIO17 HIGH = sensors ON; LOW = sensors OFF.
-- Every sensor ground connects to Sensor_GND, not system ground.
-- If I²C lines back-power sensors, add 1–2 kΩ series resistors in SDA/SCL near the ESP32.
-- Divider ratios: 5 V → 20k/30k; LiPo → 36k/100k.
+- GPIO17 HIGH = sensors ON; LOW = sensors OFF.  
+- Divider ratios: Boost rail → 20 kΩ / 30 kΩ; LiPo → 36 kΩ / 100 kΩ.
 ```
 
 ---
 
 ## Power Management
 
-- **Run time:** ~20 s active per wake  
+- **Active time:** ~20 s per wake  
 - **Sleep intervals:**  
   - 30 min (normal)  
   - 120 min (low battery)  
@@ -102,7 +103,8 @@ Notes:
 - **Active current:** ≈ 15 mA  
 - **Sleep current:** < 100 µA  
 
-All sensors and ADCs are powered down through the MOSFET when sleeping.
+All sensors and ADCs are depowered through the MOSFET when sleeping.  
+VH400’s boost converter is powered from the switched battery line.
 
 ---
 
@@ -110,16 +112,16 @@ All sensors and ADCs are powered down through the MOSFET when sleeping.
 
 **Platform:** ESP32 using **ESP-IDF**
 
-**Core features:**
-- Dual SHT31 I²C sensors (0x44, 0x45)
-- VH400 analog soil probe (GPIO34)
-- Battery & 5 V sense via ADC (GPIO32, GPIO36)
-- Adaptive deep sleep intervals
-- MOSFET power control on GPIO17
-- Sliding window battery smoothing
-- Custom event publishing: `esphome.planter_sleep`
+Features:
+- Dual SHT31 sensors (0x44, 0x45)  
+- VH400 analog soil probe with boost-supplied V+  
+- Battery and boost voltage sensing (GPIO32, GPIO36)  
+- Adaptive deep sleep intervals  
+- MOSFET control via GPIO17  
+- Sliding window battery smoothing  
+- Custom event `esphome.planter_sleep`
 
-**Build and flash:**
+Build and flash:
 ```bash
 esphome run NewSensor.yaml
 ```
@@ -136,34 +138,31 @@ Entities:
 - `sensor.capacitive_soil_moisture`
 - `sensor.soil_moisture_raw`
 - `sensor.battery_voltage`
+- `sensor.boost_voltage`
 - `sensor.battery_percent`
 - `sensor.planter_wifi_signal`
 - `esphome.planter_sleep` (event)
 
-These can be used in automations, dashboards, or scripts.
-
 ---
 
-## I²C and Power Initialization
+## Initialization Sequence
 
-On boot:
-1. ESP32 asserts GPIO17 HIGH → enables MOSFET → sensors powered.  
-2. 100–200 ms delay for VDD stabilization.  
-3. I²C bus initializes, ADCs sampled.  
-4. ESP enters main loop, then deep sleep after telemetry.
-
-This sequence prevents bus lockups from slow sensor startup.
+1. ESP32 drives GPIO17 HIGH → enables MOSFET → sensors powered.  
+2. 150 ms delay for rail stabilization.  
+3. Boost converter activates, VH400 initializes.  
+4. I²C bus and ADCs start sampling.  
+5. ESP32 sends telemetry, then enters deep sleep.
 
 ---
 
 ## Enclosure
 
-Optional 3D-printed case fits:
+Compact 3D-printed case fits:
 - ESP32 dev board  
 - 1000 mAh LiPo  
 - SHT31 enclosure sensor (vented section)  
 
-Mount near plants or integrate with solar charging.
+Mount near plants or pair with solar charging.
 
 ---
 
@@ -171,6 +170,7 @@ Mount near plants or integrate with solar charging.
 
 - [ESPHome](https://esphome.io)  
 - [Sensirion SHT3x](https://www.sensirion.com)  
+- [Vegetronix VH400](https://www.vegetronix.com/Products/VH400/)  
 - Design by **Zach Whitaker**
 
 ---
