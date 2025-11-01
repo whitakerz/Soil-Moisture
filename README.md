@@ -71,10 +71,10 @@ LiPo 4.2 V max                      ◄│  ----------------------- │ ------�
 [100 kΩ]                             │                          │
   │                                  │    ─┤ GPIO34   ADC_SOIL  ──► VH400 analog out
  GND                                 │    ─┤ GPIO21   I2C_SDA   ──► SDA of SHT31 @0x44, @0x45
-                                     │    ─┤ GPIO22   LED_OUT   ──► LED (+ series R)
+                                     |    ─┤ GPIO22   i2C-SCL   ──► SCL of SHT31 @0x44, @0x45
              ┤                       |
                                      │    ─┤ GPIO17   VDD_SW    ──200 Ω──► IRLZ44N GATE
-                                     │                          [100 kΩ] gate pull-down → GND
+                                     │                            [100 kΩ] gate pull-down → GND
                                      │                          |
                                      └──────────────────────────┘
 
@@ -161,8 +161,7 @@ Entities:
 
 Compact 3D-printed case fits:
 - ESP32 dev board  
-- 1000 mAh LiPo  
-- SHT31 enclosure sensor (vented section)  
+- 3000 mAh LiPo  
 
 Mount near plants or pair with solar charging.
 
