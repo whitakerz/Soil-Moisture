@@ -38,7 +38,6 @@ The system dynamically manages sleep cycles, optimizing performance and energy u
 - **Voltage Dividers:** Battery (GPIO32) and boost rail (GPIO36)  
 - **Wake Logic:** GPIO39 (external wake)  
 - **Sensor Power Switch:** GPIO17 → IRLZ44N gate (low-side switch for sensor ground rail)  
-- **LED Indicator:** GPIO22 (awake state)  
 - **Resistors:** 20 kΩ, 30 kΩ, 36 kΩ, 100 kΩ, 200 Ω  
 - **MOSFET:** IRLZ44N logic-level N-channel  
   - Gate: GPIO17 via 200 Ω resistor  
