@@ -18,7 +18,7 @@ substitutions:
   run_time: 20s
   sleep_time: 30min
   low_battery_sleep_time: 120min
-  night_sleep_time: 8h
+  night_sleep_time: 1h ##reduction to almost no sleep to avoid having to rewrite the code. 11/15/25 
 
 # Core ESPHome configuration and boot sequence. The on_boot logic ensures the
 # device gathers sensor data before entering deep sleep when running on
@@ -356,10 +356,10 @@ script:
           // ESP_LOGI("main", "Event stored: %s", buffer);      
 
       - if:
-          condition: # time after 21:00 (9pm)
+          condition: # time after 21:00 (9pm) ##reduction to almost no sleep 11/15/25. changed from 21 to 23
             lambda: |-
               auto t = id(home_time).now();
-              return (t.is_valid() && t.hour >= 21);
+              return (t.is_valid() && t.hour >= 23);
           then:
             - homeassistant.event:
                 event: esphome.planter_sleep
