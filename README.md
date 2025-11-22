@@ -95,7 +95,7 @@ LiPo 4.2 V max                      ◄│  ----------------------- │ ------�
   │                                  │    ─┤ GPIO34   ADC_SOIL  ──► VH400 analog out
  GND                                 │    ─┤ GPIO21   I2C_SDA   ──► SDA of SHT31 @0x44, @0x45
                                      |    ─┤ GPIO22   i2C-SCL   ──► SCL of SHT31 @0x44, @0x45
-             ┤                       |
+                                     |
                                      │    ─┤ GPIO17   VDD_SW    ──200 Ω──► IRLZ44N GATE
                                      │                            [100 kΩ] gate pull-down → GND
                                      │                          |
