@@ -125,8 +125,8 @@ A custom I²C component ensures I²C doesn't initialize until sensors are truly 
 File location:
 
 ```
-copy: esphome/components/i2c/i2c_bus_esp_idf.h File Reference
-to:   my_components/i2c/i2c_bus_esp_idf.h
+copy: /homeassistant/esphome/components/i2c/i2c_bus_esp_idf.h 
+to:   /homeassistant/esphome/my_components/i2c/i2c_bus_esp_idf.h
 ```
 
 ### Modification
@@ -153,6 +153,7 @@ This prevents intermittent failures such as:
 - First-read failures after deep sleep  
 
 ---
+[ESPHOME Access Instructions](https://github.com/whitakerz/Soil-Moisture/blob/main/esphome_access_instructions.md)
 
 ## Wake Cycle Behavior
 
