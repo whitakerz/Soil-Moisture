@@ -1,49 +1,73 @@
-# 🌱 ESPHome Soil Sensor Node
+# 🌱 ESPHome Garden Soil Moisture Node
 
-A **self-contained**, battery-powered **soil environment monitor** using **ESPHome** and **ESP32**, designed for **long-term, ultra-low-power operation**.  
-It measures temperature, humidity, soil moisture, and system voltages, enters deep sleep between updates, and integrates natively with **Home Assistant**.
+Battery-powered ESP32 soil moisture node using ESPHome, designed for long-term, low-maintenance garden deployment.  
+It measures:
 
----
+- Soil moisture (capacitive VH400 probe)
+- Garden air temperature & humidity
+- Enclosure temperature & humidity
+- Battery voltage and ESP 5 V rail voltage (prevents Sleep)
 
-## Project Overview
-
-This project is a **low-power soil monitoring node** for remote or solar-assisted deployments.  
-It records:
-
-- Air and soil **temperature**
-- **Humidity**
-- **Capacitive soil moisture**
-- **Battery voltage**
-
-The system dynamically manages sleep cycles, optimizing performance and energy use.
-
-**Design goals:**
-- High measurement accuracy using dual SHT31 sensors  
-- Reliable analog sensing with stable divider ratios  
-- Complete power isolation of sensors via MOSFET switching  
-- Multi-hour deep sleep for minimal idle current  
-- Full telemetry via Home Assistant
+All sensors receive **battery positive (V+)**, and their **ground return path is switched through a MOSFET**, ensuring near-zero sensor current during deep sleep.
 
 ---
 
-## Hardware Used
+## Design Summary
 
-- **MCU:** ESP32 Dev Board  
+- ESP32 running ESPHome (ESP-IDF)
+- Dual SHT31 sensors for ambient and enclosure temperature/humidity
+- VH400 capacitive soil moisture probe powered from a 5 V boost converter
+- Hard power removal from sensors using a low-side MOSFET
+- Custom ESPHome I²C bus component delays I²C initialization until sensors are powered
+
+This project targets users already familiar with ESPHome and Home Assistant. Electronics knowledge is helpful but not required.
+
+---
+
+## Hardware Overview
+
+### Major Components
+
+- **MCU:** ESP32 dev board
 - **Sensors:**
-  - SHT31 temperature & humidity sensor (I²C, 0x44)  
-  - SHT31 enclosure T/H sensor (I²C, 0x45)  
-  - [Vegetronix VH400](https://www.vegetronix.com/Products/VH400/) capacitive moisture probe (analog GPIO34) powered through a **boost converter (5 V output)**
-- **Battery:** Single-cell LiPo (4.2 V max)  
-- **Sensor Power Rail:** Sensors now powered from **battery V+** instead of a regulated 5 V line.  
-- **Voltage Dividers:** Battery (GPIO32) and boost rail (GPIO36)  
-- **Wake Logic:** GPIO39 (external wake)  
-- **Sensor Power Switch:** GPIO17 → IRLZ44N gate (low-side switch for sensor ground rail)  
-- **Resistors:** 20 kΩ, 30 kΩ, 36 kΩ, 100 kΩ, 200 Ω  
-- **MOSFET:** IRLZ44N logic-level N-channel  
-  - Gate: GPIO17 via 200 Ω resistor  
-  - Gate pull-down: 100 kΩ → GND  
-  - Drain: sensor ground return  
-  - Source: system ground  
+  - SHT31 @ I²C address `0x44` (garden)
+  - SHT31 @ I²C address `0x45` (enclosure)
+  - Vegetronix VH400 moisture probe (analog output)
+- **Power:**
+  - Single-cell LiPo (4.2 V max)
+  - 5 V boost converter for VH400
+  - Sensors connected directly to **battery V+**
+  - Sensor ground switched via IRLZ44N MOSFET
+- **Switching & Measurement:**
+  - MOSFET gate controlled by ESP32 `GPIO17` (via 200 Ω, 100 kΩ pull-down)
+  - Boost rail sense (30 kΩ / 20 kΩ divider → GPIO36)
+  - Battery sense (36 kΩ / 100 kΩ divider → GPIO32)
+- **GPIO Use:**
+  - `GPIO21` – I²C SDA  
+  - `GPIO22` – I²C SCL  
+  - `GPIO34` – VH400 analog input  
+  - `GPIO32` – battery voltage ADC  
+  - `GPIO36` – 5 V rail ADC  
+  - `GPIO17` – MOSFET gate  
+  - `GPIO39` – external wake  
+
+---
+
+## Power & Sensor Architecture
+
+The system uses **battery V+** to power all sensors, but prevents any actual current flow until **sensor ground** is connected.
+
+### Key Points
+
+- Sensor V+ is always present.
+- Sensor ground is routed through an IRLZ44N MOSFET.
+- When the MOSFET is **off**, sensors are effectively unpowered.
+- This prevents:
+  - I²C bus lockups on boot
+  - Sensor leakage current during deep sleep
+  - Boost converter idle draw
+
+`GPIO17` HIGH enables the MOSFET and powers all sensors; LOW disables them.
 
 ---
 
@@ -76,102 +100,89 @@ LiPo 4.2 V max                      ◄│  ----------------------- │ ------�
                                      │                            [100 kΩ] gate pull-down → GND
                                      │                          |
                                      └──────────────────────────┘
-
-SENSOR GROUND SWITCH (low-side)
-──────────────────────────────────────────────────────────────────────────────────────────────────
-All sensor grounds join Sensor_GND ───────► IRLZ44N DRAIN     IRLZ44N SOURCE ───────► SYSTEM GND
-
-Power Paths:
-- Battery V+ ──► SHT31x V+ (3.7–4.2 V)
-- Battery V+ ──► Boost Converter (5 V out) ──► VH400 V+
-- Boost converter GND, SHT31 GND, and VH400 GND all connect to Sensor_GND (switched by MOSFET)
-
-Notes:
-- GPIO17 HIGH = sensors ON; LOW = sensors OFF.  
-- Divider ratios: Boost rail → 20 kΩ / 30 kΩ; LiPo → 36 kΩ / 100 kΩ.
 ```
 
 ---
 
-## Power Management
+## ESPHome Behavior
 
-- **Active time:** ~20 s per wake  
-- **Sleep intervals:**  
-  - 30 min (normal)  
-  - 120 min (low battery)  
-  - 8 h (nighttime)  
-- **Clock speed:** 80 MHz  
-- **Active current:** ≈ 15 mA  
-- **Sleep current:** < 100 µA  
+The ESPHome configuration:
 
-All sensors and ADCs are depowered through the MOSFET when sleeping.  
-VH400’s boost converter is powered from the switched battery line.
+- Uses ESP-IDF for low-level control.
+- Manages dual SHT31 sensors on I²C.
+- Reads VH400 analog moisture values.
+- Measures battery and boost voltages via ADC.
+- Controls the MOSFET gate (`GPIO17`) to power-cycle sensors each wake cycle.
+- Performs deep sleep for long life, with adaptive intervals.
 
 ---
 
-## ESPHome Configuration
+## Custom I²C Bus Component  
+### Delayed I²C Initialization
 
-**Platform:** ESP32 using **ESP-IDF**
+A custom I²C component ensures I²C doesn't initialize until sensors are truly powered.
 
-Features:
-- Dual SHT31 sensors (0x44, 0x45)  
-- VH400 analog soil probe with boost-supplied V+  
-- Battery and boost voltage sensing (GPIO32, GPIO36)  
-- Adaptive deep sleep intervals  
-- MOSFET control via GPIO17  
-- Sliding window battery smoothing  
-- Custom event `esphome.planter_sleep`
+File location:
 
-Build and flash:
-```bash
-esphome run NewSensor.yaml
+```
+my_components/i2c/i2c_bus_esp_idf.h
 ```
 
----
+### Modification
 
-## Home Assistant Integration
+```cpp
+// Original:
+// float get_setup_priority() const override { return setup_priority::BUS; }
 
-Entities:
-- `sensor.planter_probe_temperature`
-- `sensor.planter_probe_humidity`
-- `sensor.enclosure_temperature`
-- `sensor.enclosure_humidity`
-- `sensor.capacitive_soil_moisture`
-- `sensor.soil_moisture_raw`
-- `sensor.battery_voltage`
-- `sensor.boost_voltage`
-- `sensor.battery_percent`
-- `sensor.planter_wifi_signal`
-- `esphome.planter_sleep` (event)
+// Modified:
+float get_setup_priority() const override { return setup_priority::DATA; }
+```
 
----
+### Reason
 
-## Initialization Sequence
+- ESPHome orders initialization based on setup priority.
+- By switching to `DATA`, the I²C bus initializes **later**, after:
+  - `GPIO17` enables the sensor ground MOSFET
+  - Sensors and the boost converter stabilize
 
-1. ESP32 drives GPIO17 HIGH → enables MOSFET → sensors powered.  
-2. 150 ms delay for rail stabilization.  
-3. Boost converter activates, VH400 initializes.  
-4. I²C bus and ADCs start sampling.  
-5. ESP32 sends telemetry, then enters deep sleep.
+This prevents intermittent failures such as:
+
+- I²C scan failures  
+- Missing devices on wake  
+- First-read failures after deep sleep  
 
 ---
 
-## Enclosure
+## Wake Cycle Behavior
 
-Compact 3D-printed case fits:
-- ESP32 dev board  
-- 3000 mAh LiPo  
-
-Mount near plants or pair with solar charging.
+1. ESP32 wakes.
+2. `GPIO17` → HIGH to enable the MOSFET and power sensors.
+3. Short stabilization delay.
+4. Modified I²C bus initializes.
+5. Sensors read:
+   - SHT31 ×2
+   - VH400 analog moisture
+   - Battery & 5 V rail (Prevents Sleep)
+6. Values published to Home Assistant.
+7. Sleep interval chosen (normal, low battery, or night).
+8. `GPIO17` → LOW cuts all sensor power.
+9. ESP32 enters deep sleep.
 
 ---
 
-## Credits
+## Home Assistant Entities
 
-- [ESPHome](https://esphome.io)  
-- [Sensirion SHT3x](https://www.sensirion.com)  
-- [Vegetronix VH400](https://www.vegetronix.com/Products/VH400/)  
-- Design by **Zach Whitaker**
+Typical entities exposed:
+
+- Ambient temperature / humidity
+- Enclosure temperature / humidity
+- Soil moisture (processed)
+- Raw VH400 analog voltage
+- Battery voltage
+- Boost converter voltage
+- Battery percentage
+- Wi-Fi RSSI
+- Sleep/wake event entity
 
 ---
 
