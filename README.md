@@ -125,7 +125,8 @@ A custom I²C component ensures I²C doesn't initialize until sensors are truly 
 File location:
 
 ```
-my_components/i2c/i2c_bus_esp_idf.h
+copy: esphome/components/i2c/i2c_bus_esp_idf.h File Reference
+to:   my_components/i2c/i2c_bus_esp_idf.h
 ```
 
 ### Modification
