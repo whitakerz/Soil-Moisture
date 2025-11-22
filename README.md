@@ -152,7 +152,8 @@ This prevents intermittent failures such as:
 - Missing devices on wake  
 - First-read failures after deep sleep  
 
-[ESPHOME Access Instructions](https://github.com/whitakerz/Soil-Moisture/blob/main/esphome_access_instructions.md)
+[ESPHOME Components Access Instructions](https://github.com/whitakerz/Soil-Moisture/blob/main/esphome_access_instructions.md)
+
 ---
 
 ## Wake Cycle Behavior
