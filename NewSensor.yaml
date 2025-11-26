@@ -6,31 +6,44 @@
 # Global substitution values used throughout the configuration. Adjusting these
 # settings allows the device runtime and sleep intervals to be tuned without
 # touching the rest of the file. A dedicated low-battery daytime interval keeps
-# Wi-Fi performance high while still stretching runtimes.
+# Wi-Fi performance high while still stretching runtimes. The night-specific
+# window is shortened so the unit keeps checking in while avoiding a full code
+# rewrite.
 # -----------------------------------------------------------------------------
 
 external_components:
-  - source: 
+  # Pull in local custom components. Using a relative path keeps this firmware
+  # self-contained and allows quick iterations without publishing a library.
+  - source:
       type: local
       path: my_components
 
 substitutions:
+  # Active time after a wake cycle. Keep short to minimize battery drain.
   run_time: 20s
+  # Standard deep-sleep duration between measurements while on battery.
   sleep_time: 30min
+  # Extended sleep when the battery is depleted to preserve charge.
   low_battery_sleep_time: 120min
-  night_sleep_time: 1h ##reduction to almost no sleep to avoid having to rewrite the code. 11/15/25 
+  # Shortened night interval; leaves the device mostly awake at night for
+  # easier debugging without major logic changes (note the 11/15/25 tweak).
+  night_sleep_time: 1h ##reduction to almost no sleep to avoid having to rewrite the code. 11/15/25
 
 # Core ESPHome configuration and boot sequence. The on_boot logic ensures the
 # device gathers sensor data before entering deep sleep when running on
-# battery-only power.
+# battery-only power. The split priorities let us power the sensor rails before
+# performing any reads, then pause deep sleep while the boot script finishes
+# networking and publishing work.
 esphome:
   name: planter
   friendly_name: Planter
   on_boot:
+    # High priority: power the sensors as early as possible.
     - priority: 700
       then:
         - switch.turn_on: sensor_vdd
         - delay: 100ms   # wait for sensor to power up
+    # Lower priority: block deep sleep and perform first measurements.
     - priority: 200
       then:
         - deep_sleep.prevent: deep_sleep_ctrl
@@ -43,30 +56,29 @@ esphome:
         # data has landed in Home Assistant.
         - script.execute: handle_battery_boot
 
-
-
-# Logging is kept at INFO level with UART disabled to reduce active-time power
-# draw while still surfacing important events.
+# Logging is kept at DEBUG with UART disabled to reduce active-time power
+# draw while still surfacing important events. Disable UART so no pins are held
+# by the serial console during deep sleep.
 logger:
   level: DEBUG
   baud_rate: 0
 
 # ESP32 hardware configuration. The CPU frequency is reduced to save power
-# during battery operation.
+# during battery operation and ESP-IDF is used to expose deep-sleep controls.
 esp32:
   board: esp32dev
   framework:
     type: esp-idf
   cpu_frequency: 80MHz
 
-
 api:
+  # Secure encrypted API connection to Home Assistant.
   id: homeassistant_api
   encryption:
     key: !secret planter20api
 
-
 ota:
+  # Enable over-the-air updates via the ESPHome native method.
   - platform: esphome
     password: "af02dabd1a628b113fb6ffc6c6a94c17"
 
@@ -89,7 +101,8 @@ wifi:
 
 captive_portal:
 
-# I2C bus that hosts the SHT31 sensor.
+# I2C bus that hosts the SHT31 sensor. Scanning is disabled to shorten boot
+# time and because the addresses are hard-coded.
 i2c:
   sda: 21
   scl: 22
@@ -97,6 +110,8 @@ i2c:
   id: bus_a
 
 switch:
+  # Power control for the sensors. Defaulting to off ensures the bus is only
+  # energized when required, extending battery life and avoiding phantom reads.
   - platform: gpio
     pin: GPIO17
     id: sensor_vdd
@@ -119,6 +134,7 @@ sensor:
       id: sht31_humidity
       force_update: true
 
+  # Second SHT31 mounted in the enclosure to monitor ambient box conditions.
   - platform: sht3xd
     id: box_sht31_sensor
     address: 0x45
@@ -133,7 +149,7 @@ sensor:
       force_update: true
 
   # Raw ADC reading of the 5V input, kept internal for derived sensors and only
-  # sampled on-demand.
+  # sampled on-demand. Multiplication accounts for the voltage-divider ratio.
   - platform: adc
     id: adc_5v_raw
     name: "ADC Pin Voltage (GPIO36)"
@@ -143,6 +159,8 @@ sensor:
     accuracy_decimals: 3
     internal: true
 
+  # Scaled 5V reading that also toggles a binary sensor to note external power
+  # presence, incorporating hysteresis to avoid flapping states.
   - platform: copy
     source_id: adc_5v_raw
     id: source_voltage
@@ -171,6 +189,7 @@ sensor:
     accuracy_decimals: 3
     internal: true
 
+  # Capacitive soil moisture probe read via ADC; left raw for reuse in filters.
   - platform: adc
     id: soil_moisture_raw
     pin: GPIO33
@@ -180,6 +199,7 @@ sensor:
     accuracy_decimals: 3
     internal: true
 
+  # Scaled soil moisture percentage assuming 3.0V corresponds to saturation.
   - platform: copy
     source_id: soil_moisture_raw
     name: "Capacitive Soil Moisture"
@@ -195,6 +215,7 @@ sensor:
           if (percent > 100.0f) percent = 100.0f;
           return percent;
 
+  # Battery voltage derived from the raw ADC reading with divider compensation.
   - platform: copy
     source_id: adc_batt_raw
     id: battery_voltage
@@ -207,6 +228,8 @@ sensor:
     filters:
       - multiply: 1.36
 
+  # Battery percentage using empirically tuned discharge curve and clamping to
+  # ensure Home Assistant sees valid 0-100 values.
   - platform: copy
     source_id: battery_voltage
     id: battery_percent
@@ -230,6 +253,7 @@ sensor:
           if (x > 100) x = 100;
           return x;
 
+  # Raw Wi-Fi RSSI, throttled to emit only meaningful changes for diagnostics.
   - platform: wifi_signal
     id: wifi_signal_dbm
     name: "WiFi Signal"
@@ -272,12 +296,15 @@ binary_sensor:
       - delayed_off: 300ms
 
 globals:
+  # Track the last sleep/publish reason so it survives reboots and can be
+  # displayed in Home Assistant.
   - id: last_event_text
     type: std::string
     restore_value: yes
     initial_value: '"none"'
 
 text_sensor:
+  # Human-readable summary of the most recent sleep reason and timestamp.
   - platform: template
     name: "Planter Last Event"
     id: last_event
@@ -291,15 +318,15 @@ text_sensor:
             ESP_LOGI("main", "Event stored: %s", x.c_str());
 
 
-
-
 time:
+  # Pull time from Home Assistant so sleep decisions can use real hours.
   - platform: homeassistant
     id: home_time
 
-# Sleep management script differentiating between day and night to conserve
-# battery life.
 script:
+  # Sleep management script differentiating between day and night to conserve
+  # battery life. Runs automatically on battery boots to collect and publish
+  # readings before re-entering deep sleep.
   - id: handle_battery_boot
     mode: restart
     then:
@@ -314,12 +341,14 @@ script:
             api.connected:
           timeout: 15s
       - logger.log: "Network ready, reading sensors."
+      # Manual polling of every sensor to avoid background wakeups.
       - component.update: sht31_sensor
       - component.update: box_sht31_sensor
       - component.update: wifi_signal_dbm
       - component.update: adc_batt_raw
       - component.update: adc_5v_raw
       - component.update: soil_moisture_raw
+      # Ensure all readings are available before publishing.
       - wait_until:
           condition:
             lambda: |-
@@ -331,6 +360,8 @@ script:
       - logger.log: "Publishing complete, entering sleep."
       - script.execute: enter_sleep
 
+  # Decide the appropriate sleep duration and persist the reason for Home
+  # Assistant. Nighttime and low-battery states extend sleep for longevity.
   - id: enter_sleep
     then:
       - lambda: |-
@@ -353,7 +384,7 @@ script:
           id(last_event).publish_state(buffer);
           id(last_event_text) = buffer;
           // DEBUG: TO PREVENT DUPLICATE LOG ENTRIES, COMMENT OUT THE BELOW LINE ///////////////
-          // ESP_LOGI("main", "Event stored: %s", buffer);      
+          // ESP_LOGI("main", "Event stored: %s", buffer);
 
       - if:
           condition: # time after 21:00 (9pm) ##reduction to almost no sleep 11/15/25. changed from 21 to 23
@@ -411,8 +442,8 @@ script:
                       id: deep_sleep_ctrl
                       sleep_duration: ${sleep_time}
 
-
 interval:
+  # Failsafe refresh in case the node wakes via GPIO instead of deep sleep.
   - interval: 30s
     then:
       - component.update: sht31_sensor
@@ -422,7 +453,8 @@ interval:
       - component.update: soil_moisture_raw
 
 # Deep sleep controller that governs wake durations and responds to the
-# external wake pin.
+# external wake pin. Keeping the pin as KEEP_AWAKE prevents unexpected sleep
+# when the pin is held high.
 deep_sleep:
   id: deep_sleep_ctrl
   run_duration: ${run_time}
