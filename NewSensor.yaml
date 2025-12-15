@@ -80,7 +80,7 @@ api:
 ota:
   # Enable over-the-air updates via the ESPHome native method.
   - platform: esphome
-    password: "REDACTED_OTA_PASSWORD"
+    password: !secret ota_code
 
 # Primary Wi-Fi connection along with a fallback access point to assist with
 # provisioning should the device be unable to join the main network. Power save
