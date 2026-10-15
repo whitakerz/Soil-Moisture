@@ -3,7 +3,7 @@
 Battery-powered ESP32 soil moisture node using ESPHome, designed for long-term, low-maintenance garden deployment.  
 It measures:
 
-- Soil moisture (capacitive VH400 probe)
+- Soil moisture (Vegetronix VH400 probe, converted to volumetric water content)
 - Garden air temperature & humidity
 - Enclosure temperature & humidity
 - Battery voltage and ESP 5 V rail voltage (prevents Sleep)
@@ -40,12 +40,12 @@ This project targets users already familiar with ESPHome and Home Assistant. Ele
   - Sensor ground switched via IRLZ44N MOSFET
 - **Switching & Measurement:**
   - MOSFET gate controlled by ESP32 `GPIO17` (via 200 Ω, 100 kΩ pull-down)
-  - Boost rail sense (30 kΩ / 20 kΩ divider → GPIO36)
+  - Boost rail sense (30 kΩ / 20 kΩ divider → GPIO36; ADC scale factor set empirically)
   - Battery sense (36 kΩ / 100 kΩ divider → GPIO32)
 - **GPIO Use:**
   - `GPIO21` – I²C SDA  
   - `GPIO22` – I²C SCL  
-  - `GPIO34` – VH400 analog input  
+  - `GPIO33` – VH400 analog input  
   - `GPIO32` – battery voltage ADC  
   - `GPIO36` – 5 V rail ADC  
   - `GPIO17` – MOSFET gate  
@@ -92,7 +92,7 @@ LiPo 4.2 V max                      ◄│  ----------------------- │ ------�
 ● Node (LiPo sense tap)             ◄│ GPIO32 adc_batt_raw      │
   │                                  │                          │
 [100 kΩ]                             │                          │
-  │                                  │    ─┤ GPIO34   ADC_SOIL  ──► VH400 analog out
+  │                                  │    ─┤ GPIO33   ADC_SOIL  ──► VH400 analog out
  GND                                 │    ─┤ GPIO21   I2C_SDA   ──► SDA of SHT31 @0x44, @0x45
                                      |    ─┤ GPIO22   i2C-SCL   ──► SCL of SHT31 @0x44, @0x45
                                      |
